@@ -27,10 +27,10 @@ def main():
     #print(hr)
 
     #Drop the two irelevant rows
-    data.drop(data.index[[0,1]]);
+    data.drop(data[:2]);
                 
     #Writing Data:
-    data.to_csv('test2.csv', index = False);
+    data.to_csv('test3.csv', index = False);
 
 if __name__=='__main__':
     main()
