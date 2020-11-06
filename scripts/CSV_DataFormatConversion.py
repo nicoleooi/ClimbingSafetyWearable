@@ -26,9 +26,11 @@ def main():
     del hr[1]
     #print(hr)
 
+    #Drop the two irelevant rows
+    data.drop(data.index[[0,1]]);
+                
     #Writing Data:
-    with open('out.csv', 'wb') as f: # output csv file
-    writer = csv.writer(f)
+    data.to_csv('test2.csv', index = False);
 
 if __name__=='__main__':
     main()
