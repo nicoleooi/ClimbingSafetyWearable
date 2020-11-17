@@ -74,3 +74,6 @@ y = np.delete(y, list(range(1, y.shape[0], 2)), axis=0)
 
 pd.DataFrame(x).to_csv('dropped_HR_x.csv')
 pd.DataFrame(y).to_csv('dropped_HR_y.csv')
+
+from sklearn.preprocessing import MinMaxScaler
+scaler = MinMaxScaler(feature_range=(0,1))
