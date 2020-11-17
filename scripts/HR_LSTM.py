@@ -37,7 +37,6 @@ appended_data = []
 
 for f in glob.glob(path):
     df = pd.read_csv(f, parse_dates=True,header = 0)
-    print(f)
     appended_data.append(df)
     
 df = pd.concat(appended_data)
@@ -49,9 +48,29 @@ df['Minute'] = df['Date Time'].dt.minute
 df['Second'] = df['Date Time'].dt.second
 
 df['HR'] = pd.to_numeric(df['HR'], errors = 'coerce') 
-df.drop([['Date Time', 'Time']], axis = 1, inplace = True)
+df.drop(['Date Time'], axis = 1, inplace = True)
+df.drop(['Time'], axis = 1, inplace = True)
 
+#rearrange so HR is the last column
+df = df[['Hour', 'Minute', 'Second', 'HR']]
+
+#how many time steps should we be using to predict the next step?
+#for now, use 49 to predict the next one
 x = [] #features
 y = [] #labels 
+for i in range(0, df.shape[0]-48):
+    x.append(df.iloc[i:i+48, 3])
+    y.append(df.iloc[i+48, 3])
 
+x, y = np.array(x), np.array(y)
+y = np.reshape(y, (len(y), 1))
 
+#delete every other row in a rolling window
+#features = x
+#labels = y (truth labels for evaluating)
+x = np.delete(x, list(range(1, x.shape[1], 2)), axis=1)
+x = np.delete(x, list(range(1, x.shape[0], 2)), axis=0) 
+y = np.delete(y, list(range(1, y.shape[0], 2)), axis=0)
+
+pd.DataFrame(x).to_csv('dropped_HR_x.csv')
+pd.DataFrame(y).to_csv('dropped_HR_y.csv')
