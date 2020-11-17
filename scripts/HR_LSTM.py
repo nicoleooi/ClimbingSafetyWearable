@@ -1,0 +1,57 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Nov 16 22:45:18 2020
+
+@author: nicol
+
+Univariate sequence prediction for HR (multi-step time series forecasting)
+
+activation function: tanh() 
+
+step 1: forget gate - sigmoid layer. decides which info to discard from the cell
+step 2: input gate - decides input values to update memory with
+step 3: forget + input gate - update cell state using forget and input and tanh
+step 4: output gate - decides what to output based on input and long term mem
+
+need to normalize data (sklearn)
+sequence padding to pad 0s to the start (keras)
+input must be 3D in first layer (samples, time steps, features)
+
+
+1. collect and pre-process data
+2. split into training, valid, test data
+3. data normalization
+4. create network architecture
+5. set hyperparams (learning rate, batch size, num epochs)
+6. train network
+7. evaluate
+
+"""
+import os
+import glob
+import pandas as pd
+import numpy as np
+
+path = "../converted_data/hr_only/Georgia*.csv"
+appended_data = []
+
+for f in glob.glob(path):
+    df = pd.read_csv(f, parse_dates=True,header = 0)
+    print(f)
+    appended_data.append(df)
+    
+df = pd.concat(appended_data)
+#df.to_csv('appended.csv')
+
+df['Date Time'] = pd.to_datetime(df['Time'])
+df['Hour'] = df['Date Time'].dt.hour 
+df['Minute'] = df['Date Time'].dt.minute  
+df['Second'] = df['Date Time'].dt.second
+
+df['HR'] = pd.to_numeric(df['HR'], errors = 'coerce') 
+df.drop([['Date Time', 'Time']], axis = 1, inplace = True)
+
+x = [] #features
+y = [] #labels 
+
+
