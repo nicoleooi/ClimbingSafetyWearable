@@ -31,8 +31,9 @@ import os
 import glob
 import pandas as pd
 import numpy as np
+import keras
 
-path = "../converted_data/hr_only/Georgia*.csv"
+path = "../../converted_data/hr_only/Georgia*.csv"
 appended_data = []
 
 for f in glob.glob(path):
@@ -75,5 +76,51 @@ y = np.delete(y, list(range(1, y.shape[0], 2)), axis=0)
 pd.DataFrame(x).to_csv('dropped_HR_x.csv')
 pd.DataFrame(y).to_csv('dropped_HR_y.csv')
 
+'''Data Normalization'''
+
 from sklearn.preprocessing import MinMaxScaler
 scaler = MinMaxScaler(feature_range=(0,1))
+
+x = scaler.fit_transform(x)
+y = scaler.fit_transform(y)
+
+#train on one climb? 
+split = 5156
+x_train, x_test = x[:-split], x[-split:]
+y_train, y_test = y[:-split], y[-split:]
+
+# num samples, num time stamps, num features
+x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
+x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
+
+'''Network Architecture'''
+from keras.models import Sequential
+from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
+#dense is for output layer
+#CuDNNLSTM is if we can use a GPU
+from keras import optimizers
+
+model = Sequential()
+#layer 1 = LSTM w 50 neurons
+model.add(LSTM(50, return_sequences = True, input_shape = (x_train.shape[1], 1)))
+#layer 2 = LSTM w 50 neurons
+model.add(LSTM(50, return_sequences = False))
+#fully connected layer
+model.add(Dense(50, activation='relu'))
+#output layer (single output)
+model.add(Dense(1))
+
+'''Model checks and tools to stop overfitting'''
+from keras.callbacks import ModelCheckpoint, EarlyStopping
+filepath = 'models/{epoch:02d}-{loss:.4f}-{val_loss:.4f}-{val_mae:.4f}-{val_mae:.4f}.hdf5'
+callback = [EarlyStopping(monitor = 'val_loss', patience = 50),
+            ModelCheckpoint(filepath, monitor='loss', save_best_only=True, mode='min')]
+
+nu = 0.0001 #learning rate
+optimizers.Adam(lr=nu)
+model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+model.fit(x_train, y_train, validation_split=0.2, epochs=100, callbacks=callback, batch_size=8)
+#num epochs = number of passes of training
+#batch size = number of samples to work through before updating internal params
+
+#model.load_weights()
