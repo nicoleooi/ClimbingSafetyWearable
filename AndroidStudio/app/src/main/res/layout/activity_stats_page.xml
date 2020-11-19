@@ -23,6 +23,17 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="52dp"
         android:text="Heart Rate:"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:layout_editor_absoluteX="170dp" />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/btButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="BT On/Off"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/hrGraph" />
 </androidx.constraintlayout.widget.ConstraintLayout>
