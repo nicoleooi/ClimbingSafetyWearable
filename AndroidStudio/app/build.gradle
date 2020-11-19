@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId "com.example.climbingapplication"
-        minSdkVersion 16
+        minSdkVersion 19
         targetSdkVersion 30
         versionCode 1
         versionName "1.0"
@@ -29,7 +29,13 @@ android {
 }
 
 dependencies {
-
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.google.code.gson:gson:2.3'
+    implementation 'com.google.guava:guava:18.0'
+    implementation 'com.squareup.okhttp3:okhttp:3.12.1'
+    implementation 'com.microsoft.azure:azure-mobile-android:3.5.1@aar'
+    implementation 'com.microsoft.azure:azure-notifications-handler:3.5.1@jar'
+    //implementation 'com.microsoft.azure:azure-mobile-android:3.0'
     implementation 'androidx.appcompat:appcompat:1.2.0'
     implementation 'com.google.android.material:material:1.2.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
