@@ -25,7 +25,8 @@ import java.sql.Statement;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainPage";
-    private Button button;
+    private Button statsPageButton;
+    private Button climbingPageButton;
     public Connection con;          //For database connection
     public Button testDbButton;
     public TextView testName;
@@ -54,8 +55,16 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        button = findViewById(R.id.activityButton);
-        button.setOnClickListener(new View.OnClickListener(){
+        climbingPageButton = findViewById(R.id.startClimbButton);
+        climbingPageButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openClimbingPage();
+            }
+        });
+
+        statsPageButton = findViewById(R.id.activityButton);
+        statsPageButton.setOnClickListener(new View.OnClickListener(){
             @Override
             public void onClick(View v) {
                 openStatsPage();
@@ -108,6 +117,11 @@ public class MainActivity extends AppCompatActivity {
 
     public void openStatsPage() {
         Intent intent = new Intent(this, StatsPage.class);
+        startActivity(intent);
+    }
+
+    public void openClimbingPage() {
+        Intent intent = new Intent(this, ClimbPage.class);
         startActivity(intent);
     }
 
