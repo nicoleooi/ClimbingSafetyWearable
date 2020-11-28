@@ -33,94 +33,109 @@ import pandas as pd
 import numpy as np
 import keras
 
-path = "../../converted_data/hr_only/Georgia*.csv"
-appended_data = []
+def format_data():
+    '''
+    Formats data and returns the formatted arrays.
+    '''
+    path = "../../converted_data/hr_only/Georgia*.csv"
+    appended_data = []
 
-for f in glob.glob(path):
-    df = pd.read_csv(f, parse_dates=True,header = 0)
-    appended_data.append(df)
-    
-df = pd.concat(appended_data)
-#df.to_csv('appended.csv')
+    for f in glob.glob(path):
+        df = pd.read_csv(f, parse_dates=True,header = 0)
+        appended_data.append(df)
+        
+    df = pd.concat(appended_data)
+    #df.to_csv('appended.csv')
 
-df['Date Time'] = pd.to_datetime(df['Time'])
-df['Hour'] = df['Date Time'].dt.hour 
-df['Minute'] = df['Date Time'].dt.minute  
-df['Second'] = df['Date Time'].dt.second
+    df['Date Time'] = pd.to_datetime(df['Time'])
+    df['Hour'] = df['Date Time'].dt.hour 
+    df['Minute'] = df['Date Time'].dt.minute  
+    df['Second'] = df['Date Time'].dt.second
 
-df['HR'] = pd.to_numeric(df['HR'], errors = 'coerce') 
-df.drop(['Date Time'], axis = 1, inplace = True)
-df.drop(['Time'], axis = 1, inplace = True)
+    df['HR'] = pd.to_numeric(df['HR'], errors = 'coerce') 
+    df.drop(['Date Time'], axis = 1, inplace = True)
+    df.drop(['Time'], axis = 1, inplace = True)
 
-#rearrange so HR is the last column
-df = df[['Hour', 'Minute', 'Second', 'HR']]
+    #rearrange so HR is the last column
+    df = df[['Hour', 'Minute', 'Second', 'HR']]
 
-#how many time steps should we be using to predict the next step?
-#for now, use 49 to predict the next one
-x = [] #features
-y = [] #labels 
-for i in range(0, df.shape[0]-48):
-    x.append(df.iloc[i:i+48, 3])
-    y.append(df.iloc[i+48, 3])
+    #how many time steps should we be using to predict the next step?
+    #for now, use 49 to predict the next one
+    x = [] #features
+    y = [] #labels 
+    for i in range(0, df.shape[0]-48):
+        x.append(df.iloc[i:i+48, 3])
+        y.append(df.iloc[i+48, 3])
 
-x, y = np.array(x), np.array(y)
-y = np.reshape(y, (len(y), 1))
+    x, y = np.array(x), np.array(y)
+    y = np.reshape(y, (len(y), 1))
 
-#delete every other row in a rolling window
-#features = x
-#labels = y (truth labels for evaluating)
-x = np.delete(x, list(range(1, x.shape[1], 2)), axis=1)
-x = np.delete(x, list(range(1, x.shape[0], 2)), axis=0) 
-y = np.delete(y, list(range(1, y.shape[0], 2)), axis=0)
+    #delete every other row in a rolling window
+    #features = x
+    #labels = y (truth labels for evaluating)
+    x = np.delete(x, list(range(1, x.shape[1], 2)), axis=1)
+    x = np.delete(x, list(range(1, x.shape[0], 2)), axis=0) 
+    y = np.delete(y, list(range(1, y.shape[0], 2)), axis=0)
 
-pd.DataFrame(x).to_csv('dropped_HR_x.csv')
-pd.DataFrame(y).to_csv('dropped_HR_y.csv')
+    pd.DataFrame(x).to_csv('dropped_HR_x.csv')
+    pd.DataFrame(y).to_csv('dropped_HR_y.csv')
 
-'''Data Normalization'''
+    '''Data Normalization'''
 
-from sklearn.preprocessing import MinMaxScaler
-scaler = MinMaxScaler(feature_range=(0,1))
+    from sklearn.preprocessing import MinMaxScaler
+    scaler = MinMaxScaler(feature_range=(0,1))
 
-x = scaler.fit_transform(x)
-y = scaler.fit_transform(y)
+    x = scaler.fit_transform(x)
+    y = scaler.fit_transform(y)
 
-#train on one climb? 
-split = 5156
-x_train, x_test = x[:-split], x[-split:]
-y_train, y_test = y[:-split], y[-split:]
+    #train on one climb? 
+    split = 5156
+    x_train, x_test = x[:-split], x[-split:]
+    y_train, y_test = y[:-split], y[-split:]
 
-# num samples, num time stamps, num features
-x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
-x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
+    # num samples, num time stamps, num features
+    x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
+    x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
 
-'''Network Architecture'''
-from keras.models import Sequential
-from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
-#dense is for output layer
-#CuDNNLSTM is if we can use a GPU
-from keras import optimizers
+    return x_train, x_test, y_train, y_test
 
-model = Sequential()
-#layer 1 = LSTM w 50 neurons
-model.add(LSTM(50, return_sequences = True, input_shape = (x_train.shape[1], 1)))
-#layer 2 = LSTM w 50 neurons
-model.add(LSTM(50, return_sequences = False))
-#fully connected layer
-model.add(Dense(50, activation='relu'))
-#output layer (single output)
-model.add(Dense(1))
+def train_model(x_train, x_test, y_train, y_test):
+    '''Network Architecture'''
+    from keras.models import Sequential
+    from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
+    #dense is for output layer
+    #CuDNNLSTM is if we can use a GPU
+    from keras import optimizers
 
-'''Model checks and tools to stop overfitting'''
-from keras.callbacks import ModelCheckpoint, EarlyStopping
-filepath = 'models/{epoch:02d}-{loss:.4f}-{val_loss:.4f}-{val_mae:.4f}-{val_mae:.4f}.hdf5'
-callback = [EarlyStopping(monitor = 'val_loss', patience = 50),
-            ModelCheckpoint(filepath, monitor='loss', save_best_only=True, mode='min')]
+    model = Sequential()
+    #layer 1 = LSTM w 50 neurons
+    model.add(LSTM(50, return_sequences = True, input_shape = (x_train.shape[1], 1)))
+    #layer 2 = LSTM w 50 neurons
+    model.add(LSTM(50, return_sequences = False))
+    #fully connected layer
+    model.add(Dense(50, activation='relu'))
+    #output layer (single output)
+    model.add(Dense(1))
 
-nu = 0.0001 #learning rate
-optimizers.Adam(lr=nu)
-model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-model.fit(x_train, y_train, validation_split=0.2, epochs=100, callbacks=callback, batch_size=8)
-#num epochs = number of passes of training
-#batch size = number of samples to work through before updating internal params
+    '''Model checks and tools to stop overfitting'''
+    from keras.callbacks import ModelCheckpoint, EarlyStopping
+    filepath = 'models/{epoch:02d}-{loss:.4f}-{val_loss:.4f}-{val_mae:.4f}-{val_mae:.4f}.hdf5'
+    callback = [EarlyStopping(monitor = 'val_loss', patience = 50),
+                ModelCheckpoint(filepath, monitor='loss', save_best_only=True, mode='min')]
 
-#model.load_weights()
+    nu = 0.0001 #learning rate
+    optimizers.Adam(lr=nu)
+    model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+    model.fit(x_train, y_train, validation_split=0.2, epochs=100, callbacks=callback, batch_size=8)
+    #num epochs = number of passes of training
+    #batch size = number of samples to work through before updating internal params
+    return model
+
+def test_model(model):
+    return
+
+def __init__():
+    x_train, x_test, y_train, y_test = format_data()
+    model = train_model(x_train, x_test, y_train, y_test)
+    test_model(model)
+    #model.load_weights()
