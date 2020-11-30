@@ -32,6 +32,11 @@ import glob
 import pandas as pd
 import numpy as np
 import keras
+from keras.models import Sequential
+from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
+#dense is for output layer
+#CuDNNLSTM is if we can use a GPU
+from keras import optimizers
 
 def format_data():
     '''
@@ -99,24 +104,7 @@ def format_data():
 
     return x_train, x_test, y_train, y_test
 
-def train_model(x_train, x_test, y_train, y_test):
-    '''Network Architecture'''
-    from keras.models import Sequential
-    from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
-    #dense is for output layer
-    #CuDNNLSTM is if we can use a GPU
-    from keras import optimizers
-
-    model = Sequential()
-    #layer 1 = LSTM w 50 neurons
-    model.add(LSTM(50, return_sequences = True, input_shape = (x_train.shape[1], 1)))
-    #layer 2 = LSTM w 50 neurons
-    model.add(LSTM(50, return_sequences = False))
-    #fully connected layer
-    model.add(Dense(50, activation='relu'))
-    #output layer (single output)
-    model.add(Dense(1))
-
+def train_model(model, x_train, x_test, y_train, y_test):
     '''Model checks and tools to stop overfitting'''
     from keras.callbacks import ModelCheckpoint, EarlyStopping
     filepath = 'models/{epoch:02d}-{loss:.4f}-{val_loss:.4f}-{val_mae:.4f}-{val_mae:.4f}.hdf5'
@@ -132,10 +120,35 @@ def train_model(x_train, x_test, y_train, y_test):
     return model
 
 def test_model(model):
+    #the best model will be the LAST file in the /models folder
+    files = glob.glob("/models")
+    best_model = files[-1]
+    print(best_model)
+    model.load_weights(best_model)
+    
+    import time
+    
+    
     return
 
-def __init__():
+def main():
     x_train, x_test, y_train, y_test = format_data()
-    model = train_model(x_train, x_test, y_train, y_test)
+    
+    '''Network Architecture'''
+    model = Sequential()
+    #layer 1 = LSTM w 50 neurons
+    model.add(LSTM(50, return_sequences = True, input_shape = (x_train.shape[1], 1)))
+    #layer 2 = LSTM w 50 neurons
+    model.add(LSTM(50, return_sequences = False))
+    #fully connected layer
+    model.add(Dense(50, activation='relu'))
+    #output layer (single output)
+    model.add(Dense(1))
+    
+    #model = train_model(model, x_train, x_test, y_train, y_test)
+    
     test_model(model)
     #model.load_weights()
+    
+if __name__ == "__main__":
+    main()
