@@ -32,11 +32,14 @@ import glob
 import pandas as pd
 import numpy as np
 import keras
+import time
+
 from keras.models import Sequential
 from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
 #dense is for output layer
 #CuDNNLSTM is if we can use a GPU
 from keras import optimizers
+from sklearn.preprocessing import MinMaxScaler
 
 def format_data():
     '''
@@ -89,7 +92,6 @@ def format_data():
 
     '''Data Normalization'''
 
-    from sklearn.preprocessing import MinMaxScaler
     scaler = MinMaxScaler(feature_range=(0,1))
 
     x = scaler.fit_transform(x)
@@ -117,7 +119,6 @@ def normalize_data():
     y = pd.read_csv('dropped_HR_y.csv', header = 0)
     y.drop(y.columns[0], inplace=True, axis=1)
 
-    from sklearn.preprocessing import MinMaxScaler
     scaler = MinMaxScaler(feature_range=(0,1))
 
     x = scaler.fit_transform(x)
@@ -134,7 +135,7 @@ def normalize_data():
     
     print("Finished data normalization")
     
-    return x_train, x_test, y_train, y_test
+    return x_train, x_test, y_train, y_test, scaler
     
 def train_model(model, x_train, x_test, y_train, y_test):
     '''Model checks and tools to stop overfitting'''
@@ -152,7 +153,7 @@ def train_model(model, x_train, x_test, y_train, y_test):
     #batch size = number of samples to work through before updating internal params
     return model
 
-def test_model(model, x_train, x_test, y_train, y_test):
+def test_model(model, scaler, x_train, x_test, y_train, y_test):
     print("Starting testing...")
     
     #the best model will be the LAST file in the /models folder
@@ -160,15 +161,10 @@ def test_model(model, x_train, x_test, y_train, y_test):
     best_model = files[-1]
     print(best_model)
     model.load_weights("./models/"+best_model)
-    
-    import time
-    #USE A WHILE LOOP FOR REAL TIME PREDICTION
-    #TO UPDATE THE CSV FILES
-    from sklearn.preprocessing import MinMaxScaler
-    scaler = MinMaxScaler(feature_range=(0,1))
-    obj_x = scaler.fit(x)
-    obj_y = scaler.fit(y)
-
+    '''
+    USE A WHILE LOOP FOR REAL TIME PREDICTION
+    TO UPDATE THE CSV FILES
+    '''
     for i in range(0, x_test.shape[0]):
         hr_summary = [] #forecasted hr
         x_input = x_test[i, :, :]
@@ -185,14 +181,19 @@ def test_model(model, x_train, x_test, y_train, y_test):
         
         df = pd.DataFrame(hr_summary)
         df = df.T #put it into a single row
-        #df.to_csv("real_time_HR.csv", mode='a', header=False, index=False)
+        df.to_csv("real_time_HR.csv", mode='a', header=False, index=False)
         
-    
+        #period of prediction, if you want real time don't sleep
+        #time.sleep(0.5)
+        print(df)
+        
+        
     print("Finished testing")
     return
 
+    
 def main():
-    x_train, x_test, y_train, y_test = normalize_data()
+    x_train, x_test, y_train, y_test, scaler = normalize_data()
     
     '''Network Architecture'''
     model = Sequential()
@@ -204,11 +205,8 @@ def main():
     model.add(Dense(50, activation='relu'))
     #output layer (single output)
     model.add(Dense(1))
-    
-    #model = train_model(model, x_train, x_test, y_train, y_test)
-    
-    test_model(model, x_train, x_test, y_train, y_test)
-    #model.load_weights()
+
+    test_model(model, scaler, x_train, x_test, y_train, y_test)
     
 if __name__ == "__main__":
     main()
