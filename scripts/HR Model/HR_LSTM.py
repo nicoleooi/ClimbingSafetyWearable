@@ -41,13 +41,13 @@ from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
 from keras import optimizers
 from sklearn.preprocessing import MinMaxScaler
 
-def format_data():
+def format_data(person):
     '''
     Formats data and returns the formatted arrays.
     '''
     print("Formatting data...")
     
-    path = "../../converted_data/hr_only/Georgia*.csv"
+    path = "../../converted_data/hr_only/"+person+"*.csv" #put Georgia as person for it to work 
     appended_data = []
 
     for f in glob.glob(path):
@@ -87,8 +87,8 @@ def format_data():
     x = np.delete(x, list(range(1, x.shape[0], 2)), axis=0) 
     y = np.delete(y, list(range(1, y.shape[0], 2)), axis=0)
 
-    pd.DataFrame(x).to_csv('dropped_HR_x.csv')
-    pd.DataFrame(y).to_csv('dropped_HR_y.csv')
+    pd.DataFrame(x).to_csv('dropped_HR_x_'+person+'.csv')
+    pd.DataFrame(y).to_csv('dropped_HR_y_'+person+'.csv')
 
     '''Data Normalization'''
 
@@ -110,13 +110,13 @@ def format_data():
 
     return x_train, x_test, y_train, y_test
 
-def normalize_data():
+def normalize_data(person):
     '''Data Normalization'''
     print("Starting data normalization...")
     
-    x = pd.read_csv('dropped_HR_x.csv', header = 0)
+    x = pd.read_csv('dropped_HR_x_'+person+'.csv', header = 0)
     x.drop(x.columns[0],inplace=True, axis=1)
-    y = pd.read_csv('dropped_HR_y.csv', header = 0)
+    y = pd.read_csv('dropped_HR_y_'+person+'.csv', header = 0)
     y.drop(y.columns[0], inplace=True, axis=1)
 
     scaler = MinMaxScaler(feature_range=(0,1))
@@ -181,18 +181,17 @@ def test_model(model, scaler, x_train, x_test, y_train, y_test):
         
         df = pd.DataFrame(hr_summary)
         df = df.T #put it into a single row
-        df.to_csv("real_time_HR.csv", mode='a', header=False, index=False)
+        df.to_csv("real_time_HR_ELHANA.csv", mode='a', header=False, index=False)
         
         #period of prediction, if you want real time don't sleep
         #time.sleep(0.5)
         print(df)
         
-        
     print("Finished testing")
     return
 
     
-def main():
+def main_Georgia():
     x_train, x_test, y_train, y_test, scaler = normalize_data()
     
     '''Network Architecture'''
@@ -208,5 +207,21 @@ def main():
 
     test_model(model, scaler, x_train, x_test, y_train, y_test)
     
+def main():
+    x_train, x_test, y_train, y_test = format_data("Elhana")
+    x_train, x_test, y_train, y_test, scaler = normalize_data("Elhana")
+    
+    '''Network Architecture'''
+    model = Sequential()
+    #layer 1 = LSTM w 50 neurons
+    model.add(LSTM(50, return_sequences = True, input_shape = (x_train.shape[1], 1)))
+    #layer 2 = LSTM w 50 neurons
+    model.add(LSTM(50, return_sequences = False))
+    #fully connected layer
+    model.add(Dense(50, activation='relu'))
+    #output layer (single output)
+    model.add(Dense(1))
+    
+    test_model(model, scaler, x_train, x_test, y_train, y_test)
 if __name__ == "__main__":
     main()
