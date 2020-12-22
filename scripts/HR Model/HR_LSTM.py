@@ -41,7 +41,8 @@ from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
 from keras import optimizers
 from sklearn.preprocessing import MinMaxScaler
 
-def format_data(person):
+
+def format_data(person, version):
     '''
     Formats data and returns the formatted arrays.
     '''
@@ -87,8 +88,8 @@ def format_data(person):
     x = np.delete(x, list(range(1, x.shape[0], 2)), axis=0) 
     y = np.delete(y, list(range(1, y.shape[0], 2)), axis=0)
 
-    pd.DataFrame(x).to_csv('dropped_HR_x_'+person+'.csv')
-    pd.DataFrame(y).to_csv('dropped_HR_y_'+person+'.csv')
+    pd.DataFrame(x).to_csv('dropped_HR_x_v'+version+'.csv')
+    pd.DataFrame(y).to_csv('dropped_HR_y_v'+version+'.csv')
 
     '''Data Normalization'''
 
@@ -110,13 +111,13 @@ def format_data(person):
 
     return x_train, x_test, y_train, y_test
 
-def normalize_data(person):
+def normalize_data(version):
     '''Data Normalization'''
     print("Starting data normalization...")
     
-    x = pd.read_csv('dropped_HR_x_'+person+'.csv', header = 0)
+    x = pd.read_csv('dropped_HR_x_'+version+'.csv', header = 0)
     x.drop(x.columns[0],inplace=True, axis=1)
-    y = pd.read_csv('dropped_HR_y_'+person+'.csv', header = 0)
+    y = pd.read_csv('dropped_HR_y_'+version+'.csv', header = 0)
     y.drop(y.columns[0], inplace=True, axis=1)
 
     scaler = MinMaxScaler(feature_range=(0,1))
@@ -137,11 +138,11 @@ def normalize_data(person):
     
     return x_train, x_test, y_train, y_test, scaler
     
-def train_model(model, x_train, x_test, y_train, y_test):
+def train_model(model, x_train, x_test, y_train, y_test, version):
     '''Model checks and tools to stop overfitting'''
     print("Formatting model")
     from keras.callbacks import ModelCheckpoint, EarlyStopping
-    filepath = 'models/{epoch:02d}-{loss:.4f}-{val_loss:.4f}-{val_mae:.4f}-{val_mae:.4f}.hdf5'
+    filepath = 'models_v'+version+'/{epoch:02d}-{loss:.4f}-{val_loss:.4f}-{val_mae:.4f}-{val_mae:.4f}.hdf5'
     callback = [EarlyStopping(monitor = 'val_loss', patience = 50),
                 ModelCheckpoint(filepath, monitor='loss', save_best_only=True, mode='min')]
 
@@ -153,14 +154,14 @@ def train_model(model, x_train, x_test, y_train, y_test):
     #batch size = number of samples to work through before updating internal params
     return model
 
-def test_model(model, scaler, x_train, x_test, y_train, y_test):
+def test_model(model, scaler, x_train, x_test, y_train, y_test, version):
     print("Starting testing...")
     
     #the best model will be the LAST file in the /models folder
-    files = os.listdir("./models")
+    files = os.listdir("./models_v"+version)
     best_model = files[-1]
     print(best_model)
-    model.load_weights("./models/"+best_model)
+    model.load_weights("./models_v"+version+"/"+best_model)
     '''
     USE A WHILE LOOP FOR REAL TIME PREDICTION
     TO UPDATE THE CSV FILES
@@ -181,7 +182,7 @@ def test_model(model, scaler, x_train, x_test, y_train, y_test):
         
         df = pd.DataFrame(hr_summary)
         df = df.T #put it into a single row
-        df.to_csv("real_time_HR_ELHANA.csv", mode='a', header=False, index=False)
+        df.to_csv("real_time_HR_v"+version+".csv", mode='a', header=False, index=False)
         
         #period of prediction, if you want real time don't sleep
         #time.sleep(0.5)
@@ -190,8 +191,7 @@ def test_model(model, scaler, x_train, x_test, y_train, y_test):
     print("Finished testing")
     return
 
-    
-def main_Georgia():
+def main_v1():
     x_train, x_test, y_train, y_test, scaler = normalize_data()
     
     '''Network Architecture'''
@@ -208,10 +208,16 @@ def main_Georgia():
     test_model(model, scaler, x_train, x_test, y_train, y_test)
     
 def main():
-    x_train, x_test, y_train, y_test = format_data("Elhana")
-    x_train, x_test, y_train, y_test, scaler = normalize_data("Elhana")
+    '''
+    Version 2.0: Trained on ALL available data
+    '''
+    #Format Data
+    x_train, x_test, y_train, y_test = format_data("","2.0")
     
-    '''Network Architecture'''
+    #Normalize Data
+    x_train, x_test, y_train, y_test, scaler = normalize_data("2.0")
+    
+    #Network Architecture
     model = Sequential()
     #layer 1 = LSTM w 50 neurons
     model.add(LSTM(50, return_sequences = True, input_shape = (x_train.shape[1], 1)))
@@ -222,6 +228,11 @@ def main():
     #output layer (single output)
     model.add(Dense(1))
     
-    test_model(model, scaler, x_train, x_test, y_train, y_test)
+    #Train Model
+    model = train_model(model, x_train, x_test, y_train, y_test, "2.0")
+    
+    #Test Model
+    #test_model(model, scaler, x_train, x_test, y_train, y_test, "2.0")
+
 if __name__ == "__main__":
     main()
