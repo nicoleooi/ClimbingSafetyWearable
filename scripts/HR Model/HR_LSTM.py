@@ -115,9 +115,9 @@ def normalize_data(version):
     '''Data Normalization'''
     print("Starting data normalization...")
     
-    x = pd.read_csv('dropped_HR_x_'+version+'.csv', header = 0)
+    x = pd.read_csv('dropped_HR_x_v'+version+'.csv', header = 0)
     x.drop(x.columns[0],inplace=True, axis=1)
-    y = pd.read_csv('dropped_HR_y_'+version+'.csv', header = 0)
+    y = pd.read_csv('dropped_HR_y_v'+version+'.csv', header = 0)
     y.drop(y.columns[0], inplace=True, axis=1)
 
     scaler = MinMaxScaler(feature_range=(0,1))
