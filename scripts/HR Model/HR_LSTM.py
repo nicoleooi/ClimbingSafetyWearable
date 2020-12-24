@@ -236,7 +236,7 @@ def main():
     '''
     
     #Test Model
-    test_model(model, scaler, x_train, x_test, y_train, y_test, "2.0")
+    #test_model(model, scaler, x_train, x_test, y_train, y_test, "2.0")
 
 if __name__ == "__main__":
     main()

@@ -7,6 +7,8 @@ from azureml.core import Run
 from azureml.core.model import Model
 
 from sklearn.preprocessing import MinMaxScaler
+from keras.models import Sequential
+from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
 
 def init():
     """
@@ -15,10 +17,23 @@ def init():
     
     global model, run
     
-    model_artifact = "100-0.0004-0.0002-0.0094-0.0094.hdf5"
+    model_artifact = "hrpredictor.joblib"
     model_path = os.path.join(os.getenv('AZUREML_MODEL_DIR'), model_artifact)
-    #model is of type Sequential() from keras
+    
     model = joblib.load(model_path)
+    '''
+    #model is of type Sequential() from keras
+    model = Sequential()
+    #layer 1 = LSTM w 50 neurons
+    model.add(LSTM(50, return_sequences = True, input_shape = (24, 1)))
+    #layer 2 = LSTM w 50 neurons
+    model.add(LSTM(50, return_sequences = False))
+    #fully connected layer
+    model.add(Dense(50, activation='relu'))
+    #output layer (single output)
+    model.add(Dense(1))
+    model.load_weights(model_path, compile=False)
+    '''
     
 def run(data):
     """
