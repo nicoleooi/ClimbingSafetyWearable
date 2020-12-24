@@ -40,7 +40,7 @@ from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
 #CuDNNLSTM is if we can use a GPU
 from keras import optimizers
 from sklearn.preprocessing import MinMaxScaler
-
+from LSTM_animate import graph
 
 def format_data(person, version):
     '''
@@ -158,7 +158,8 @@ def test_model(model, scaler, x_train, x_test, y_train, y_test, version):
     print("Starting testing...")
     
     #the best model will be the LAST file in the /models folder
-    files = os.listdir("./models_v"+version)
+    path="./models_v"+version+"/"
+    files = sorted(os.listdir(path), key=lambda x: int(''.join(filter(str.isdigit, x[0:3]))))
     best_model = files[-1]
     print(best_model)
     model.load_weights("./models_v"+version+"/"+best_model)
@@ -170,8 +171,8 @@ def test_model(model, scaler, x_train, x_test, y_train, y_test, version):
         hr_summary = [] #forecasted hr
         x_input = x_test[i, :, :]
         x_input = np.reshape(x_input, (1, x_input.shape[0], 1)) #1 sample, time stamp is 0, then 1 feature
-        x_input = model.predict(x_input)
-        prediction = scaler.inverse_transform(x_input)
+        prediction = model.predict(x_input)
+        prediction = scaler.inverse_transform(prediction)
         
         y_input = y_test[i,:]
         y_input = np.reshape(y_input, (1,1))
@@ -186,7 +187,7 @@ def test_model(model, scaler, x_train, x_test, y_train, y_test, version):
         
         #period of prediction, if you want real time don't sleep
         #time.sleep(0.5)
-        print(df)
+        #print(df)
         
     print("Finished testing")
     return
@@ -211,9 +212,10 @@ def main():
     '''
     Version 2.0: Trained on ALL available data
     '''
+    '''
     #Format Data
     x_train, x_test, y_train, y_test = format_data("","2.0")
-    
+    '''
     #Normalize Data
     x_train, x_test, y_train, y_test, scaler = normalize_data("2.0")
     
@@ -228,11 +230,13 @@ def main():
     #output layer (single output)
     model.add(Dense(1))
     
+    '''
     #Train Model
     model = train_model(model, x_train, x_test, y_train, y_test, "2.0")
+    '''
     
     #Test Model
-    #test_model(model, scaler, x_train, x_test, y_train, y_test, "2.0")
+    test_model(model, scaler, x_train, x_test, y_train, y_test, "2.0")
 
 if __name__ == "__main__":
     main()
