@@ -13,16 +13,13 @@ env = Environment("my-custom-environment")
 env.python.conda_dependencies = CondaDependencies.create(pip_packages=[
     'azureml-defaults>= 1.0.45', # mandatory dependency, contains the functionality needed to host the model as a web service
     'inference-schema[numpy-support]', # dependency for automatic schema generation (for parsing and validating input data)
-    'joblib',
-    'numpy',
-    'pandas',
-    'os',
-    'glob',
-    'time',
+    'joblib==0.14.1',
+    'numpy==1.18.1',
+    'pandas==1.0.1',
     'scikit-learn',
-    'keras',
-    'json',
-    'tensorflow'
+    'keras==2.3.1',
+    'json5==0.9.1',
+    'tensorflow==1.14.0'
 ])
 
 
@@ -41,12 +38,12 @@ aci_config = AciWebservice.deploy_configuration(cpu_cores=1,
 from azureml.core import Workspace
 from azureml.core.model import Model
 
-model_name = "hr-prediction-lstm"
+model_name = "hr-predictor-lstm"
 endpoint_name = "hr-prediction-lstm-final-ep"
 
 ws = Workspace.from_config()
 
-model = Model(ws, name=model_name, version=3)
+model = Model(ws, name=model_name, version=1)
 
 service = Model.deploy(workspace=ws,
                        name=endpoint_name,
