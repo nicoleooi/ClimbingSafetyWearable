@@ -9,12 +9,12 @@ from azureml.core import Workspace
 from azureml.core.model import Model
 
 model_name = "hr-prediction-lstm"
-endpoint_name = "hr-prediction-lstm-ep"
+endpoint_name = "hr-prediction-lstm3-ep"
 
 ws = Workspace.from_config()
 
 # Locate the model in the workspace
-model = Model(ws, name=model_name)
+model = Model(ws, name=model_name, version=3)
 
 # Deploy the model as a real-time endpoint
 service = Model.deploy(ws, endpoint_name, [model])
