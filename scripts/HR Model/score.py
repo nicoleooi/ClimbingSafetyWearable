@@ -21,19 +21,6 @@ def init():
     model_path = os.path.join(os.getenv('AZUREML_MODEL_DIR'), model_artifact)
     
     model = joblib.load(model_path)
-    '''
-    #model is of type Sequential() from keras
-    model = Sequential()
-    #layer 1 = LSTM w 50 neurons
-    model.add(LSTM(50, return_sequences = True, input_shape = (24, 1)))
-    #layer 2 = LSTM w 50 neurons
-    model.add(LSTM(50, return_sequences = False))
-    #fully connected layer
-    model.add(Dense(50, activation='relu'))
-    #output layer (single output)
-    model.add(Dense(1))
-    model.load_weights(model_path, compile=False)
-    '''
     
 def run(data):
     """
@@ -43,7 +30,7 @@ def run(data):
     
     #Normalize data using min/max
     scaler = MinMaxScaler(feature_range=(0,1))
-    input_data = scaler.fit_transform(input_data)
+    input_data = scaler.fit_transform(input_data.reshape(-1,1))
     
     #Reformat into 3D
     input_data = np.reshape(input_data, (1, input_data.shape[0], 1)) #1 sample, time stamp is 0, then 1 feature
