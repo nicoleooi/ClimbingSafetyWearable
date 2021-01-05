@@ -40,26 +40,6 @@
         app:layout_constraintVertical_bias="0.519" />
 
     <Button
-        android:id="@+id/dbTestButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="28dp"
-        android:layout_marginBottom="24dp"
-        android:text="Test Database"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <TextView
-        android:id="@+id/dbTestText"
-        android:layout_width="87dp"
-        android:layout_height="21dp"
-        android:layout_marginStart="100dp"
-        android:layout_marginBottom="52dp"
-        android:text="None"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/dbTestButton" />
-
-    <Button
         android:id="@+id/startClimbButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
