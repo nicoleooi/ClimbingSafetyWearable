@@ -1,6 +1,5 @@
 package com.example.climbingapplication;
 import androidx.appcompat.app.AppCompatActivity;
-
 import android.annotation.SuppressLint;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -13,14 +12,24 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Chronometer;
 import android.widget.TextView;
+
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
+
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 
 
-public class ClimbPage extends AppCompatActivity {
+public class ClimbPage extends AppCompatActivity implements OnMapReadyCallback {
 
     private Button localDBButton;
     private TextView hrText;
@@ -34,11 +43,19 @@ public class ClimbPage extends AppCompatActivity {
     private Chronometer chronometer;
     private long timeClimbedFor;
     public static SQLiteDatabase localDb;
+    public CSVFile csvFile;
+    public double longitude;
+    public double latitude;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_climb_page);
+
+        //Setting up google map:
+        SupportMapFragment mapFragment =
+                (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
 
         //Create and Fill Local Database
         localDb = openOrCreateDatabase("incomingData",MODE_PRIVATE,null);
@@ -70,7 +87,7 @@ public class ClimbPage extends AppCompatActivity {
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (climbingFlag == false){
+                if (!climbingFlag){
                     startButton.setBackgroundColor(0xFFFF0000);
                     startButton.setText("Stop Climbing");
                     startstopChronometer(v);
@@ -84,11 +101,38 @@ public class ClimbPage extends AppCompatActivity {
         });
 
     }
+
+    @Override
+    public void onMapReady(GoogleMap map) {
+        if(climbingFlag && latitude!=0 && longitude!=0) {
+            map.addMarker(new MarkerOptions().position(new LatLng(latitude, longitude)).title("Marker"));
+        }
+    }
+
+    public void climbing(View v) {
+//        try{
+//            InputStream inputStream = new FileInputStream("/dataIn/test.csv");
+//            csvFile = new CSVFile(inputStream);
+//            List dataList = csvFile.read();
+//            while(climbingFlag){
+//                latitude = (long)dataList.get(0);
+//                longitude = (long)dataList.get(1);
+//            }
+//            inputStream.close();
+//        } catch(Exception e){
+//            System.out.println(e.getMessage());
+//        }
+        latitude = 43.793430;
+        longitude = -79.137750;
+
+    }
+
     public void startstopChronometer(View v){
         if (!climbingFlag){
             chronometer.setBase(SystemClock.elapsedRealtime());
             chronometer.start();
             climbingFlag = true;
+            climbing(v);
         }
         else{
             chronometer.stop();
