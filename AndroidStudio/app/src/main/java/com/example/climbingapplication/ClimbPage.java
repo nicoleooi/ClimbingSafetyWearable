@@ -1,14 +1,17 @@
 package com.example.climbingapplication;
 import androidx.appcompat.app.AppCompatActivity;
+
 import android.annotation.SuppressLint;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.StrictMode;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.Chronometer;
 import android.widget.TextView;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -21,11 +24,15 @@ public class ClimbPage extends AppCompatActivity {
 
     private Button localDBButton;
     private TextView hrText;
+    private TextView timeClimbed;
     private static final String TAG = "ClimbPage";
     public Connection con;          //For database connection
     public Button azureDBButton;
     public TextView testName;
-
+    private Button startButton;
+    public Boolean climbingFlag;
+    private Chronometer chronometer;
+    private long timeClimbedFor;
     public static SQLiteDatabase localDb;
 
     @Override
@@ -56,8 +63,39 @@ public class ClimbPage extends AppCompatActivity {
                 tdb.execute("");
             }
         });
-    }
 
+        climbingFlag = false;
+        chronometer = findViewById(R.id.chronometer);
+        startButton = findViewById(R.id.startButton);
+        startButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (climbingFlag == false){
+                    startButton.setBackgroundColor(0xFFFF0000);
+                    startButton.setText("Stop Climbing");
+                    startstopChronometer(v);
+                }
+                else{
+                    startButton.setBackgroundColor(0xFF6200EE);
+                    startButton.setText("Start Climbing");
+                    startstopChronometer(v);
+                }
+            }
+        });
+
+    }
+    public void startstopChronometer(View v){
+        if (!climbingFlag){
+            chronometer.setBase(SystemClock.elapsedRealtime());
+            chronometer.start();
+            climbingFlag = true;
+        }
+        else{
+            chronometer.stop();
+            timeClimbedFor = SystemClock.elapsedRealtime() - chronometer.getBase();
+            climbingFlag = false;
+        }
+    }
 
     public String testRetrieve(SQLiteDatabase localDb) {        //Method used to access local database
         Cursor resultSet = localDb.rawQuery("Select * from Data",null);
