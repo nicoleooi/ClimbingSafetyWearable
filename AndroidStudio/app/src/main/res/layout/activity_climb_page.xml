@@ -99,4 +99,17 @@
         app:layout_constraintStart_toEndOf="@+id/timeClimbed"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.447" />
+
+    <fragment
+        android:id="@+id/map"
+        android:name="com.google.android.gms.maps.SupportMapFragment"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toTopOf="@+id/azureDBButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/dbButton"
+        app:layout_constraintVertical_bias="0.757"
+        tools:context="com.abhiandroid.GoogleMaps.googlemaps.MapsActivity" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

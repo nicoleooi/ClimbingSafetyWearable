@@ -53,6 +53,7 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
+
     public void openClimbingPage() {
         Intent intent = new Intent(this, ClimbPage.class);
         startActivity(intent);
