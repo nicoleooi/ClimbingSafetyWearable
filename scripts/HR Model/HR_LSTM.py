@@ -35,6 +35,7 @@ import keras
 import time
 import math
 import joblib
+import tensorflow as tf
 
 from keras.models import Sequential
 from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
@@ -43,6 +44,8 @@ from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
 from keras import optimizers
 from sklearn.preprocessing import MinMaxScaler
 from LSTM_animate import graph
+
+N_TRAIN = 11708
 
 def format_data(person, version, n_in, n_out):
     '''
@@ -118,6 +121,7 @@ def format_data(person, version, n_in, n_out):
 
     #train on 80% of data
     split = math.ceil(x.shape[0] * 0.8)
+    N_TRAIN = split
     x_train, x_test = x[:-split], x[-split:]
     y_train, y_test = y[:-split], y[-split:]
 
@@ -159,14 +163,18 @@ def train_model(model, x_train, x_test, y_train, y_test, version):
     '''Model checks and tools to stop overfitting'''
     print("Training model")
     from keras.callbacks import ModelCheckpoint, EarlyStopping
-    filepath = 'models_v'+version+'/{epoch:02d}-{loss:.4f}-{val_loss:.4f}-{val_mae:.4f}-{val_mae:.4f}.hdf5'
-    callback = [EarlyStopping(monitor = 'val_loss', patience = 50),
-                ModelCheckpoint(filepath, monitor='loss', save_best_only=True, mode='min')]
-
+    filepath = 'models_v'+version+'/{epoch:02d}-{loss:.4f}-{val_loss:.4f}-{mse:.4f}-{mae:.4f}.hdf5'
+    
+    savedModel = ModelCheckpoint(filepath, monitor='val_loss', save_best_only=True, mode='min')
+    earlyStopper = EarlyStopping(monitor = 'val_loss', patience = 50)
+    tbCallBack = keras.callbacks.TensorBoard(log_dir='./models_v'+version+'/tblogs' , histogram_freq=0, write_graph=True, write_images=False)
+    cbs = [savedModel, earlyStopper, tbCallBack]
+    
     nu = 0.0001 #learning rate
     optimizers.Adam(lr=nu)
-    model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-    model.fit(x_train, y_train, validation_split=0.2, epochs=100, callbacks=callback, batch_size=8)
+        
+    model.compile(optimizer='adam', loss='mse', metrics=['mse','mae'])
+    model.fit(x_train, y_train, validation_split=0.2, epochs=100, callbacks=cbs, batch_size=8)
     #num epochs = number of passes of training
     #batch size = number of samples to work through before updating internal params
     return model
@@ -257,7 +265,7 @@ def main():
     '''
     Version 3.0: Changed architecture
     '''
-    n_in = 10
+    n_in = 15
     n_out = 30
     
     #Format Data
@@ -271,11 +279,11 @@ def main():
     #Network Architecture
     model = Sequential()
     #layer 1 = LSTM w 50 neurons
-    model.add(LSTM(50, return_sequences = True, input_shape = (x_train.shape[1], 1)))
+    model.add(LSTM(100, return_sequences = True, input_shape = (x_train.shape[1], 1)))
     #layer 2 = LSTM w 50 neurons
-    model.add(LSTM(50, return_sequences = False))
+    model.add(LSTM(100, return_sequences = False))
     #fully connected layer
-    model.add(Dense(50, activation='relu'))
+    model.add(Dense(100, activation='relu'))
     #output layer (30 predictions)
     model.add(Dense(n_out))
     
@@ -287,5 +295,96 @@ def main():
     #Test Model
     #test_model(model, scaler, x_train, x_test, y_train, y_test, "2.0")
 
+def main_v4():
+    '''
+    Version 4.0: Changed architecture
+    '''
+    n_in = 15
+    n_out = 45
+    
+    #Format Data
+    x_train, x_test, y_train, y_test = format_data("","4.0", n_in, n_out)
+    
+    '''
+    #Normalize Data
+    x_train, x_test, y_train, y_test, scaler = normalize_data("3.0")
+    '''
+    
+    #Network Architecture
+    model = Sequential()
+    #layer 1 = LSTM w 50 neurons
+    model.add(LSTM(100, return_sequences = True, input_shape = (x_train.shape[1], 1)))
+    #layer 2 = LSTM w 50 neurons
+    model.add(LSTM(100, return_sequences = False))
+    #fully connected layer
+    model.add(Dense(100, activation='relu'))
+    #output layer (30 predictions)
+    model.add(Dense(n_out))
+    
+    
+    #Train Model
+    model = train_model(model, x_train, x_test, y_train, y_test, "4.0")
+    
+def main_v5():
+    '''
+    Version 5.0: Changed architecture
+    TODO: Alex run
+    '''
+    n_in = 15
+    n_out = 60
+    
+    #Format Data
+    x_train, x_test, y_train, y_test = format_data("","5.0", n_in, n_out)
+    
+    '''
+    #Normalize Data
+    x_train, x_test, y_train, y_test, scaler = normalize_data("3.0")
+    '''
+    
+    #Network Architecture
+    model = Sequential()
+    #layer 1 = LSTM w 50 neurons
+    model.add(LSTM(100, return_sequences = True, input_shape = (x_train.shape[1], 1)))
+    #layer 2 = LSTM w 50 neurons
+    model.add(LSTM(100, return_sequences = False))
+    #fully connected layer
+    model.add(Dense(100, activation='relu'))
+    #output layer (30 predictions)
+    model.add(Dense(n_out))
+    
+    
+    #Train Model
+    model = train_model(model, x_train, x_test, y_train, y_test, "5.0")
+    
+def main_v6():
+    '''
+    Regularizing v3.0
+    '''
+    n_in = 15
+    n_out = 45
+    
+    #Format Data
+    x_train, x_test, y_train, y_test = format_data("","6.0", n_in, n_out)
+    
+    '''
+    #Normalize Data
+    x_train, x_test, y_train, y_test, scaler = normalize_data("3.0")
+    '''
+    
+    #Network Architecture
+    model = Sequential()
+    #layer 1 = LSTM w 50 neurons
+    model.add(LSTM(100, return_sequences = True, input_shape = (x_train.shape[1], 1)))
+    #layer 2 = LSTM w 50 neurons
+    model.add(LSTM(100, return_sequences = False))
+    #fully connected layer
+    model.add(Dense(100, activation='relu'))
+    #output layer (30 predictions)
+    model.add(Dense(n_out))
+    
+    
+    #Train Model
+    model = train_model(model, x_train, x_test, y_train, y_test, "6.0")
+
 if __name__ == "__main__":
-    main()
+    main_v4()
