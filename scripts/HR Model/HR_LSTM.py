@@ -33,6 +33,8 @@ import pandas as pd
 import numpy as np
 import keras
 import time
+import math
+import joblib
 
 from keras.models import Sequential
 from keras.layers import Dense, Activation, CuDNNLSTM, LSTM
@@ -42,13 +44,13 @@ from keras import optimizers
 from sklearn.preprocessing import MinMaxScaler
 from LSTM_animate import graph
 
-def format_data(person, version):
+def format_data(person, version, n_in, n_out):
     '''
     Formats data and returns the formatted arrays.
     '''
     print("Formatting data...")
     
-    path = "../../converted_data/hr_only/"+person+"*.csv" #put Georgia as person for it to work 
+    path = "../../converted_data/hr_only/"+person+"*.csv" 
     appended_data = []
 
     for f in glob.glob(path):
@@ -69,27 +71,43 @@ def format_data(person, version):
 
     #rearrange so HR is the last column
     df = df[['Hour', 'Minute', 'Second', 'HR']]
-
-    #how many time steps should we be using to predict the next step?
-    #for now, use 49 to predict the next one
+    
+    '''
     x = [] #features
     y = [] #labels 
     for i in range(0, df.shape[0]-48):
         x.append(df.iloc[i:i+48, 3])
-        y.append(df.iloc[i+48, 3])
+        y.append(df.iloc[i+48:i+48+(num_predictions-1), 3])
 
     x, y = np.array(x), np.array(y)
-    y = np.reshape(y, (len(y), 1))
-
-    #delete every other row in a rolling window
-    #features = x
-    #labels = y (truth labels for evaluating)
+    y = np.reshape(y, (len(y), num_predictions))
+    
+    
     x = np.delete(x, list(range(1, x.shape[1], 2)), axis=1)
     x = np.delete(x, list(range(1, x.shape[0], 2)), axis=0) 
     y = np.delete(y, list(range(1, y.shape[0], 2)), axis=0)
-
-    pd.DataFrame(x).to_csv('dropped_HR_x_v'+version+'.csv')
-    pd.DataFrame(y).to_csv('dropped_HR_y_v'+version+'.csv')
+    '''
+    
+    def to_supervised(df, n_input, n_output):
+        x = []
+        y = []
+        for i in range(df.shape[0]): #moving by 1, could move by n_input
+            in_end = i + n_input
+            out_end = in_end + n_output
+            if out_end <= df.shape[0]:
+                x_input = np.array(df.iloc[i:in_end, 3])
+                y_input= np.array(df.iloc[in_end:out_end,3])
+                #x_input = x_input.reshape((len(x_input), 1))
+                x.append(x_input)
+                y.append(y_input)
+            
+        x, y = np.array(x), np.array(y)
+        
+        return x,y
+            
+    x,y = to_supervised(df, n_in, n_out)
+    pd.DataFrame(x).to_csv('./formatted_data/dropped_HR_x_v'+version+'.csv')
+    pd.DataFrame(y).to_csv('./formatted_data/dropped_HR_y_v'+version+'.csv')
 
     '''Data Normalization'''
 
@@ -98,8 +116,8 @@ def format_data(person, version):
     x = scaler.fit_transform(x)
     y = scaler.fit_transform(y)
 
-    #train on one climb? 
-    split = 5156
+    #train on 80% of data
+    split = math.ceil(x.shape[0] * 0.8)
     x_train, x_test = x[:-split], x[-split:]
     y_train, y_test = y[:-split], y[-split:]
 
@@ -124,9 +142,8 @@ def normalize_data(version):
 
     x = scaler.fit_transform(x)
     y = scaler.fit_transform(y)
-
-    #train on one climb 
-    split = 5156
+ 
+    split = math.ceil(x.shape[0] * 0.8)
     x_train, x_test = x[:-split], x[-split:]
     y_train, y_test = y[:-split], y[-split:]
 
@@ -140,7 +157,7 @@ def normalize_data(version):
     
 def train_model(model, x_train, x_test, y_train, y_test, version):
     '''Model checks and tools to stop overfitting'''
-    print("Formatting model")
+    print("Training model")
     from keras.callbacks import ModelCheckpoint, EarlyStopping
     filepath = 'models_v'+version+'/{epoch:02d}-{loss:.4f}-{val_loss:.4f}-{val_mae:.4f}-{val_mae:.4f}.hdf5'
     callback = [EarlyStopping(monitor = 'val_loss', patience = 50),
@@ -163,10 +180,8 @@ def test_model(model, scaler, x_train, x_test, y_train, y_test, version):
     best_model = files[-1]
     print(best_model)
     model.load_weights("./models_v"+version+"/"+best_model)
-    '''
-    USE A WHILE LOOP FOR REAL TIME PREDICTION
-    TO UPDATE THE CSV FILES
-    '''
+    joblib.dump(model, './best_models/hrpredictor_v'+version+'.joblib')
+
     for i in range(0, x_test.shape[0]):
         hr_summary = [] #forecasted hr
         x_input = x_test[i, :, :]
@@ -208,7 +223,7 @@ def main_v1():
 
     test_model(model, scaler, x_train, x_test, y_train, y_test)
     
-def main():
+def main_v2():
     '''
     Version 2.0: Trained on ALL available data
     '''
@@ -234,6 +249,40 @@ def main():
     #Train Model
     model = train_model(model, x_train, x_test, y_train, y_test, "2.0")
     '''
+    
+    #Test Model
+    #test_model(model, scaler, x_train, x_test, y_train, y_test, "2.0")
+    
+def main():
+    '''
+    Version 3.0: Changed architecture
+    '''
+    n_in = 10
+    n_out = 30
+    
+    #Format Data
+    x_train, x_test, y_train, y_test = format_data("","3.0", n_in, n_out)
+    
+    '''
+    #Normalize Data
+    x_train, x_test, y_train, y_test, scaler = normalize_data("3.0")
+    '''
+    
+    #Network Architecture
+    model = Sequential()
+    #layer 1 = LSTM w 50 neurons
+    model.add(LSTM(50, return_sequences = True, input_shape = (x_train.shape[1], 1)))
+    #layer 2 = LSTM w 50 neurons
+    model.add(LSTM(50, return_sequences = False))
+    #fully connected layer
+    model.add(Dense(50, activation='relu'))
+    #output layer (30 predictions)
+    model.add(Dense(n_out))
+    
+    
+    #Train Model
+    model = train_model(model, x_train, x_test, y_train, y_test, "3.0")
+    
     
     #Test Model
     #test_model(model, scaler, x_train, x_test, y_train, y_test, "2.0")
