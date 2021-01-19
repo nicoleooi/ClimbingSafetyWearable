@@ -387,4 +387,4 @@ def main_v6():
     model = train_model(model, x_train, x_test, y_train, y_test, "6.0")
 
 if __name__ == "__main__":
-    main_v4()
+    main_v5()
