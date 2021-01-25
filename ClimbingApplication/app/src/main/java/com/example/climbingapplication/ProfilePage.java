@@ -1,13 +1,11 @@
 package com.example.climbingapplication;
-
 import androidx.appcompat.app.AppCompatActivity;
-
 import android.database.Cursor;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.TextView;
+
 
 public class ProfilePage extends MainActivity {
 
@@ -57,17 +55,18 @@ public class ProfilePage extends MainActivity {
         ageIn = findViewById(R.id.age_id);
         sexIn = findViewById(R.id.sex_id);
 
-        Cursor resultSet = userDb.rawQuery("Select * from Data",null);
-        resultSet.moveToFirst();
-        String flag = resultSet.getString(0);
-        if(!(flag.isEmpty())){
-            fNameIn.setHint(flag);
-            lNameIn.setHint(resultSet.getString(1));
-            heightIn.setHint(resultSet.getString(2));
-            weightIn.setHint(resultSet.getString(3));
-            ageIn.setHint(resultSet.getString(4));
-            sexIn.setHint(resultSet.getString(5));
-        }
+//        Cursor resultSet = userDb.rawQuery("Select * from Data",null);        NEED TO FIX!!!!!
+//        resultSet.moveToFirst();
+//        String flag = resultSet.getString(0);
+//        if(!(flag.isEmpty())){
+//            fNameIn.setHint(flag);
+//            lNameIn.setHint(resultSet.getString(1));
+//            heightIn.setHint(resultSet.getString(2));
+//            weightIn.setHint(resultSet.getString(3));
+//            ageIn.setHint(resultSet.getString(4));
+//            sexIn.setHint(resultSet.getString(5));
+//        }
+
 
     }
 
