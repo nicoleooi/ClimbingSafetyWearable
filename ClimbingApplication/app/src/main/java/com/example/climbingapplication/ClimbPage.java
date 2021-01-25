@@ -46,6 +46,7 @@ public class ClimbPage extends MainActivity {
     public double latitude;
     private Button homeButton;
     private Button profileButton;
+    private Button mapsButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,6 +65,15 @@ public class ClimbPage extends MainActivity {
             public void onClick(View v) {
                 String result = testRetrieve(localDb);
                 hrText.setText(result);
+            }
+        });
+
+        mapsButton = findViewById(R.id.mapsButton);
+        mapsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent myIntent = new Intent(ClimbPage.this, MapsActivity.class);
+                ClimbPage.this.startActivity(myIntent);
             }
         });
 
