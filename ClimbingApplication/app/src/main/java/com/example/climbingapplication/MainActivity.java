@@ -22,7 +22,7 @@ public class MainActivity extends AppCompatActivity {
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        getWindow().getDecorView().setBackgroundColor(5);
 
         //Create and Fill User Database
         userDb = openOrCreateDatabase("userData",MODE_PRIVATE,null);
@@ -43,7 +43,6 @@ public class MainActivity extends AppCompatActivity {
 
         mToolbar = findViewById(R.id.toolbar);
         setSupportActionBar(mToolbar);
-
         homeButton = findViewById(R.id.homeButton);
         homeButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -79,6 +78,11 @@ public class MainActivity extends AppCompatActivity {
             Intent intent = new Intent(this, ProfilePage.class);
             startActivity(intent);
         }
+    }
+
+    public void openRecordClimbPage() {
+        Intent intent = new Intent(this, RecordingClimb.class);
+        startActivity(intent);
     }
 
 }

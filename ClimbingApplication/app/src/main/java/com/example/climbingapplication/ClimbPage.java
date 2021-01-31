@@ -1,107 +1,42 @@
 package com.example.climbingapplication;
 
-import androidx.appcompat.app.AppCompatActivity;
-
-import android.content.Intent;
 import android.os.Bundle;
-import android.annotation.SuppressLint;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
-import android.os.AsyncTask;
-import android.os.StrictMode;
-import android.os.SystemClock;
-import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
+import android.os.Handler;
 import android.view.View;
 import android.widget.Button;
-import android.widget.Chronometer;
+import android.widget.ImageView;
 import android.widget.TextView;
-import com.google.android.gms.maps.GoogleMap;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.List;
-
+import android.widget.Toast;
 
 public class ClimbPage extends MainActivity {
 
-    private Button localDBButton;
-    private TextView hrText;
-    private TextView timeClimbed;
-    private static final String TAG = "ClimbPage";
-    public Connection con;          //For database connection
-    public Button azureDBButton;
-    public TextView testName;
     private Button startButton;
-    public Boolean climbingFlag;
-    private Chronometer chronometer;
-    private long timeClimbedFor;
+    public Boolean readyFlag;
+
     public CSVFile csvFile;
     public double longitude;
     public double latitude;
     private Button homeButton;
     private Button profileButton;
     private Button mapsButton;
+    private TextView waitGPSText;
+    private ImageView gpsSymbol;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_climb_page);
 
-        //Create and Fill Local Database
-//        localDb = openOrCreateDatabase("incomingData",MODE_PRIVATE,null);
-//        localDb.execSQL("CREATE TABLE IF NOT EXISTS Data(HR VARCHAR,AccelerationX VARCHAR,AccelerationY VARCHAR,AccelerationZ VARCHAR,GPSLong VARCHAR,GPSLat VARCHAR,Time VARCHAR);");
-//        localDb.execSQL("INSERT INTO Data VALUES('92','9.81', '9.81', '9.81', '100', '200', '0');");
-//
-        localDBButton = findViewById(R.id.dbButton);
-        hrText = findViewById(R.id.hrValue);
-        localDBButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String result = testRetrieve(localDb);
-                hrText.setText(result);
-            }
-        });
-
-        mapsButton = findViewById(R.id.mapsButton);
-        mapsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent myIntent = new Intent(ClimbPage.this, MapsActivity.class);
-                ClimbPage.this.startActivity(myIntent);
-            }
-        });
-
-        azureDBButton = findViewById(R.id.azureDBButton);
-        azureDBButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                ClimbPage.testAzureDB tdb = new ClimbPage.testAzureDB();
-                tdb.execute("");
-            }
-        });
-
-        climbingFlag = false;
-        chronometer = findViewById(R.id.chronometer);
-        startButton = findViewById(R.id.startButton);
+        waitGPSText = findViewById(R.id.waitGPSText);
+        readyFlag = false;
+        startButton = findViewById(R.id.startBtn);
+        startButton.setBackgroundColor(0xFFEE0000);
+        startButton.setEnabled(false);
+        startButton.setText("Not Ready");
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (!climbingFlag){
-                    startButton.setBackgroundColor(0xFFFF0000);
-                    startButton.setText("Stop Climbing");
-                    startstopChronometer(v);
-                }
-                else{
-                    startButton.setBackgroundColor(0xFF6200EE);
-                    startButton.setText("Start Climbing");
-                    startstopChronometer(v);
-                }
+                openRecordClimbPage();
             }
         });
 
@@ -121,89 +56,29 @@ public class ClimbPage extends MainActivity {
             }
         });
 
+        gpsSymbol = findViewById(R.id.gpsSymbol);
+        findViewById(R.id.gpsSymbol).setVisibility(View.GONE);
+
     }
 
-
-    public void startstopChronometer(View v){
-        if (!climbingFlag){
-            chronometer.setBase(SystemClock.elapsedRealtime());
-            chronometer.start();
-            climbingFlag = true;
-        }
-        else{
-            chronometer.stop();
-            timeClimbedFor = SystemClock.elapsedRealtime() - chronometer.getBase();
-            climbingFlag = false;
-        }
+    @Override
+    protected void onStart() {
+        super.onStart();
+        (new Handler()).postDelayed(this::onReady, 5000);
     }
 
-    public String testRetrieve(SQLiteDatabase localDb) {        //Method used to access local database
-        Cursor resultSet = localDb.rawQuery("Select * from Data",null);
-        resultSet.moveToFirst();
-        String HR = resultSet.getString(0);
-        return HR;
+    public void onReady() {
+        waitGPSText.setText("Signal Acquired.");
+        findViewById(R.id.loadingPanel).setVisibility(View.GONE);
+        findViewById(R.id.gpsSymbol).setVisibility(View.VISIBLE);
+        startButton.setBackgroundColor(0xFF008000);
+        startButton.setText("Ready to climb");
+        startButton.setEnabled(true);
+        readyFlag = true;
+
+        Toast toast = Toast.makeText(ClimbPage.this, "GPS Signal Acquired!",
+                Toast.LENGTH_LONG);
+        toast.show();
     }
 
-    public class testAzureDB extends AsyncTask<String, String, String> {     //Class to access azure DB
-        String z = "";
-        Boolean isSuccess = false;
-        String name1 = "";
-
-        @Override
-        protected void onPostExecute(String r){
-            if(isSuccess){
-                testName = (TextView) findViewById(R.id.dbTestText);
-                testName.setText(name1);
-            }
-        }
-        @Override
-        protected String doInBackground(String... params) {
-            try{
-                con = connectionclass();
-                if (con == null) {
-                    z = "Check your Internet Access!";
-                }
-                else{
-                    String query = "select * from Persons";
-                    Statement stmt = con.createStatement();
-                    ResultSet rs = stmt.executeQuery(query);
-                    if(rs.next()) {
-                        name1 = rs.getString("FirstName");
-                        z = "query successful";
-                        isSuccess = true;
-                        con.close();
-                    }
-                    else{
-                        z = "Invalid Query!";
-                        isSuccess = false;
-                    }
-                }
-            } catch(Exception e) {
-                isSuccess = false;
-                z = e.getMessage();
-                Log.d("sql error", z);
-            }
-            return z;
-        }
-    }
-
-    @SuppressLint("NewAPI")
-    public Connection connectionclass() {   //Method for connecting to Azure API
-        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
-        StrictMode.setThreadPolicy(policy);
-        Connection connection = null;
-        String ConnectionURL = null;
-        try {
-            Class.forName("net.sourceforge.jtds.jdbc.Driver");
-            ConnectionURL = "jdbc:jtds:sqlserver://climbingdatabaseserver.database.windows.net:1433;DatabaseName=climbingdata;user=Alex@climbingdatabaseserver;password=Emoipo10;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;";
-            connection = DriverManager.getConnection(ConnectionURL);
-        } catch (SQLException se) {
-            Log.e("error here 1: ", se.getMessage());
-        } catch (ClassNotFoundException e) {
-            Log.e("error here 2: ", e.getMessage());
-        } catch (Exception e) {
-            Log.e("error here 3: ", e.getMessage());
-        }
-        return connection;
-    }
 }

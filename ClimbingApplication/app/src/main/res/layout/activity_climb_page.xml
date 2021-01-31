@@ -4,127 +4,60 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/cBlue"
     tools:context=".ClimbPage">
 
-    <include layout="@layout/toolbar"/>
+    <include
+        android:id="@+id/include2"
+        layout="@layout/toolbar" />
+
+
+    <ProgressBar
+        android:id="@+id/loadingPanel"
+        android:layout_width="137dp"
+        android:layout_height="132dp"
+        android:gravity="center"
+        app:layout_constraintBottom_toTopOf="@+id/startBtn"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/include2" />
 
     <Button
-        android:id="@+id/startButton"
+        android:id="@+id/startBtn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Start Climbing"
+        android:text="Not Ready"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.931" />
+        app:layout_constraintTop_toBottomOf="@+id/include2"
+        app:layout_constraintVertical_bias="0.864" />
 
     <TextView
-        android:id="@+id/timeClimbed"
+        android:id="@+id/waitGPSText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Time Climbed: "
+        android:layout_marginTop="112dp"
+        android:text="Acquiring GPS Signal..."
         android:textSize="30sp"
-        app:layout_constraintBottom_toTopOf="@+id/startButton"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.284"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.129" />
-
-    <Button
-        android:id="@+id/dbButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Test Local Database"
-        app:layout_constraintBottom_toTopOf="@+id/startButton"
+        app:layout_constraintBottom_toTopOf="@+id/loadingPanel"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/timeClimbed"
-        app:layout_constraintVertical_bias="0.09" />
-
-    <TextView
-        android:id="@+id/hrValue"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="NULL"
-        app:layout_constraintBottom_toTopOf="@+id/startButton"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.578"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/dbButton"
-        app:layout_constraintVertical_bias="0.184" />
-
-    <TextView
-        android:id="@+id/HR"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="HR:"
-        app:layout_constraintBottom_toTopOf="@+id/startButton"
-        app:layout_constraintEnd_toStartOf="@+id/hrValue"
-        app:layout_constraintHorizontal_bias="0.759"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/dbButton"
-        app:layout_constraintVertical_bias="0.184" />
-
-    <Button
-        android:id="@+id/azureDBButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Test Azure Database"
-        app:layout_constraintBottom_toTopOf="@+id/startButton"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/dbButton" />
-
-    <TextView
-        android:id="@+id/dbTestText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="NULL"
-        app:layout_constraintBottom_toTopOf="@+id/startButton"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.498"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/azureDBButton"
-        app:layout_constraintVertical_bias="0.407" />
-
-    <Chronometer
-        android:id="@+id/chronometer"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textSize="30sp"
-        app:layout_constraintBottom_toTopOf="@+id/dbButton"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.23"
-        app:layout_constraintStart_toEndOf="@+id/timeClimbed"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.641" />
-
-    <Button
-        android:id="@+id/mapsButton"
-        android:layout_width="66dp"
-        android:layout_height="42dp"
-        android:text="Button"
-        app:icon="@android:drawable/ic_dialog_map"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.979"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/startButton"
+        app:layout_constraintTop_toBottomOf="@+id/include2"
         app:layout_constraintVertical_bias="0.0" />
 
-    <!--    <fragment-->
-<!--        android:id="@+id/map"-->
-<!--        android:name="com.google.android.gms.maps.SupportMapFragment"-->
-<!--        android:layout_width="wrap_content"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        app:layout_constraintBottom_toTopOf="@+id/azureDBButton"-->
-<!--        app:layout_constraintEnd_toEndOf="parent"-->
-<!--        app:layout_constraintStart_toStartOf="parent"-->
-<!--        app:layout_constraintTop_toBottomOf="@+id/dbButton"-->
-<!--        app:layout_constraintVertical_bias="0.757"-->
-<!--        tools:context="com.abhiandroid.GoogleMaps.googlemaps.MapsActivity" />-->
+    <ImageView
+        android:id="@+id/gpsSymbol"
+        android:layout_width="138dp"
+        android:layout_height="133dp"
+        app:layout_constraintBottom_toTopOf="@+id/startBtn"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/waitGPSText"
+        app:layout_constraintVertical_bias="0.206"
+        app:srcCompat="@drawable/antenna" />
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
