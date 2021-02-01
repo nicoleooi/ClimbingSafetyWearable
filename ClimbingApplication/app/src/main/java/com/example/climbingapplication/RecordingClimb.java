@@ -21,7 +21,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-import com.android.volley.AuthFailureError;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
@@ -29,11 +28,10 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.util.HashMap;
-import java.util.Map;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
 
 public class RecordingClimb extends MainActivity {
 
@@ -41,17 +39,18 @@ public class RecordingClimb extends MainActivity {
     private Button startBtn;
     public Boolean climbingFlag;
     private Chronometer chronometer;
-    private long timeClimbedFor;
-    public CSVFile csvFile;
     public double longitude;
     public double latitude;
     private Button homeButton;
     private Button profileButton;
     private Button mapsButton;
     private RequestQueue requestQueue;
-    private TextView testWeather;
+    private TextView tempText, humidityText, speedText, visibilityText, weatherDescription;
     private ImageView weatherImage;
-    private String weather;
+    private String apiKey;
+    private float[] weatherResponse = new float[8];
+    private float timeClimbedFor;
+    private String fields[] = {"temperatureApparent", "humidity", "windSpeed", "precipitationIntensity", "precipitationProbability", "precipitationType", "visibility", "weatherCode"};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,19 +67,8 @@ public class RecordingClimb extends MainActivity {
         RecordingClimb.testAzureDB tdb = new RecordingClimb.testAzureDB();
         tdb.execute("");
 
-        weatherImage = findViewById(R.id.weatherImage);
-        weather = "thunder";
-        switch(weather){
-            case("sunny"):
-                weatherImage.setImageResource(R.drawable.sunny);
-                break;
-            case("rain"):
-                weatherImage.setImageResource(R.drawable.rain);
-                break;
-            case("thunder"):
-                weatherImage.setImageResource(R.drawable.thunder);
-                break;
-        }
+        latitude = 44.23;
+        longitude = -76.50;
 
         mapsButton = findViewById(R.id.mapsButton);
         mapsButton.setOnClickListener(new View.OnClickListener() {
@@ -128,9 +116,13 @@ public class RecordingClimb extends MainActivity {
             }
         });
 
-        String apiKey = "jFNGDUXBapyjnShPufxJHL6YsCvedU9v";
-
-        testWeather = findViewById(R.id.testWeather);
+        apiKey = "VCN07ZizEgitoq6L4I32o199HOojMIYj";
+        tempText = findViewById(R.id.temp);
+        humidityText = findViewById(R.id.humidityText);
+        speedText = findViewById(R.id.speedText);
+        visibilityText = findViewById(R.id.visibilityText);
+        weatherImage = findViewById(R.id.weatherImage);
+        weatherDescription = findViewById(R.id.weatherDescription);
         requestQueue = Volley.newRequestQueue(this);
         String url = "https://api.climacell.co/v4/locations?apikey=jFNGDUXBapyjnShPufxJHL6YsCvedU9v";
         requestWithSomeHttpHeaders();
@@ -138,7 +130,17 @@ public class RecordingClimb extends MainActivity {
 
     public void requestWithSomeHttpHeaders() {
         RequestQueue queue = Volley.newRequestQueue(this);
-        String url = "https://data.climacell.co/v4/locations?apikey=jFNGDUXBapyjnShPufxJHL6YsCvedU9v";
+        String url = "https://data.climacell.co/v4/timelines?location="+latitude+"%2C"+longitude;
+        for (int i=0; i<fields.length; i++){
+            url += "&fields="+fields[i];
+        }
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
+        String endAsISO = df.format(addHoursToJavaUtilDate(new Date(), 15));
+        String startAsISO = df.format(new Date());
+        url += "&timesteps=5m";
+        url += "&endTime="+endAsISO;
+        url += "&startTime="+startAsISO;
+        url += "&apikey="+apiKey;
         StringRequest getRequest = new StringRequest(Request.Method.GET, url,
                 new Response.Listener<String>()
                 {
@@ -146,42 +148,154 @@ public class RecordingClimb extends MainActivity {
                     public void onResponse(String response) {
                         // response
                         Log.d("Response", response);
-                        testWeather.setText(response);
+                        parseResponse(response);
                     }
                 },
                 new Response.ErrorListener()
                 {
                     @Override
                     public void onErrorResponse(VolleyError error) {
-                        // TODO Auto-generated method stub
                         Log.d("ERROR","error => "+error.toString());
                     }
                 }
-        ) {
-            @Override
-            public Map<String, String> getHeaders() throws AuthFailureError {
-                Map<String, String>  headers = new HashMap<String, String>();
-                headers.put("apikey", "jFNGDUXBapyjnShPufxJHL6YsCvedU9v");
-                headers.put("content-type","application/json");
-                return headers;
-            }
-            @Override
-            protected Map<String,String> getParams(){
-                Map<String,String> params = new HashMap<String, String>();
-                params.put("type","Point");
-                params.put("Coordinates","[42.355440, -71.059910]");
-                try {
-                    String jsonString = new JSONObject()
-                            .put("Coordinates", new JSONObject().put("coordinates", "[42.355440, -71.059910]"))
-                            .toString();
-                    params.put("Coordinates",jsonString);
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-                return params;
-            }
-        };
+        );
         queue.add(getRequest);
+    }
+
+    public void parseResponse(String response){
+        System.out.println(response);
+        for (int i=0; i<fields.length; i++){
+            int startIndex, endIndex;
+            if(i == fields.length - 1){
+                startIndex = contains((CharSequence)fields[i], response);
+                startIndex += fields[i].length() + 2;
+                endIndex = contains((CharSequence)"}", response);
+                char[] temp = new char[endIndex - startIndex];
+                response.getChars(startIndex, endIndex, temp, 0);
+                String tmp = new String(temp);
+                weatherResponse[i] = Float.parseFloat(tmp);
+            }
+            else{
+                startIndex = contains((CharSequence)fields[i], response);
+                startIndex += fields[i].length() + 2;
+                endIndex = contains((CharSequence)fields[i+1], response);
+                char[] temp = new char[endIndex - 2 - startIndex];
+                response.getChars(startIndex, endIndex - 2, temp, 0);
+                String tmp = new String(temp);
+                weatherResponse[i] = Float.parseFloat(tmp);
+            }
+        }
+        handleWeatherResponse(weatherResponse);
+    }
+
+    public int contains(CharSequence sequence, String outerString)
+    {
+        return outerString.indexOf(sequence.toString());
+    }
+
+    public void handleWeatherResponse(float[] weatherResponse){
+        tempText.setText(Float.toString(weatherResponse[0])+"\u00B0"+"C");
+        humidityText.setText(Float.toString(weatherResponse[1])+"%");
+        speedText.setText(Float.toString(weatherResponse[2])+" km/h");
+        visibilityText.setText(Float.toString(weatherResponse[3])+" km");
+
+        switch ((int)weatherResponse[7]){
+            case 4201:
+                weatherImage.setImageResource(R.drawable.rain_heavy);
+                weatherDescription.setText("Heavy Rain");
+                break;
+            case 4001:
+                weatherImage.setImageResource(R.drawable.rain);
+                weatherDescription.setText("Rain");
+                break;
+            case 4200:
+                weatherImage.setImageResource(R.drawable.rain_light);
+                weatherDescription.setText("Light Rain");
+                break;
+            case 6201:
+                weatherImage.setImageResource(R.drawable.freezing_rain_heavy);
+                weatherDescription.setText("Heavy Freezing Rain");
+                break;
+            case 6001:
+                weatherImage.setImageResource(R.drawable.freezing_rain);
+                weatherDescription.setText("Freezing Rain");
+                break;
+            case 6200:
+                weatherImage.setImageResource(R.drawable.freezing_rain_light);
+                weatherDescription.setText("Light Freezing Rain");
+                break;
+            case 6000:
+                weatherImage.setImageResource(R.drawable.freezing_drizzle);
+                weatherDescription.setText("Freezing Drizzle");
+                break;
+            case 4000:
+                weatherImage.setImageResource(R.drawable.drizzle);
+                weatherDescription.setText("Drizzle");
+                break;
+            case 7101:
+                weatherImage.setImageResource(R.drawable.ice_pellets_heavy);
+                weatherDescription.setText("Heavy Ice Pellets");
+                break;
+            case 7000:
+                weatherImage.setImageResource(R.drawable.ice_pellets);
+                weatherDescription.setText("Ice Pellets");
+                break;
+            case 7102:
+                weatherImage.setImageResource(R.drawable.ice_pellets_light);
+                weatherDescription.setText("Light Ice Pellets");
+                break;
+            case 5101:
+                weatherImage.setImageResource(R.drawable.snow_heavy);
+                weatherDescription.setText("Heavy Snow");
+                break;
+            case 5000:
+                weatherImage.setImageResource(R.drawable.snow);
+                weatherDescription.setText("Snow");
+                break;
+            case 5100:
+                weatherImage.setImageResource(R.drawable.snow_light);
+                weatherDescription.setText("Light Snow");
+                break;
+            case 5001:
+                weatherImage.setImageResource(R.drawable.flurries);
+                weatherDescription.setText("Flurries");
+                break;
+            case 8000:
+                weatherImage.setImageResource(R.drawable.tstorm);
+                weatherDescription.setText("Thunder Storm");
+                break;
+            case 2100:
+                weatherImage.setImageResource(R.drawable.fog_light);
+                weatherDescription.setText("Light Fog");
+                break;
+            case 2000:
+                weatherImage.setImageResource(R.drawable.fog);
+                weatherDescription.setText("Fog");
+                break;
+            case 1001:
+                weatherImage.setImageResource(R.drawable.cloudy);
+                weatherDescription.setText("Cloudy");
+                break;
+            case 1102:
+                weatherImage.setImageResource(R.drawable.mostly_cloudy);
+                weatherDescription.setText("Mostly Cloudy");
+                break;
+            case 1101:
+                weatherImage.setImageResource(R.drawable.partly_cloudy_day);
+                weatherDescription.setText("Partly Cloudy");
+                break;
+            case 1100:
+                weatherImage.setImageResource(R.drawable.mostly_clear_day);
+                weatherDescription.setText("Mostly Clear");
+                break;
+            case 1000:
+                weatherImage.setImageResource(R.drawable.clear_day);
+                weatherDescription.setText("Clear");
+                break;
+            default:
+                weatherImage.setImageResource(R.drawable.logo);
+                weatherDescription.setText("No Weather Info");
+        }
     }
 
     public void startstopChronometer(View v){
@@ -244,6 +358,13 @@ public class RecordingClimb extends MainActivity {
             }
             return z;
         }
+    }
+
+    public Date addHoursToJavaUtilDate(Date date, int minutes) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
+        calendar.add(Calendar.MINUTE, minutes);
+        return calendar.getTime();
     }
 
     @SuppressLint("NewAPI")
