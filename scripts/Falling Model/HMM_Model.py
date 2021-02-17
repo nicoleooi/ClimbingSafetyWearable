@@ -10,11 +10,16 @@ import pandas as pd
 def make_supervised():
     #1 = fall
     #0 = not fall
-    path = "../../data/sisFall_acc_only/*/" 
-    data = []
+    path = "../../converted_data/sisFall_dataset/" 
 
-    for f in glob.glob(path+"D*"):
+    for f in glob.glob(path+"*/*.csv"): #get all the csv files
         # if it startsw D, it's an ADL
+        df = pd.read_csv(path+f)
         if("D" in f):
+            df['Label'] = 0
+        else:
+            df['Label'] = 1
+        df.to_csv('sup_fall_data/'+f)
+            
             
             
