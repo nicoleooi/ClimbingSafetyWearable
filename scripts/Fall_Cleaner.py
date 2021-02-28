@@ -22,17 +22,17 @@ def clean_sisFall():
         fullpath = path+s
         files = os.listdir(fullpath)
         for f in files:
-            if(".csv" not in f):
+            if("SA" not in f):
                 continue
             print(f)
-            df = pd.read_csv(fullpath+"/"+f, parse_dates=True,header = 0)
-            df = df[['ADXL345 X', 'ADXL345 Y', 'ADXL345 Z']] #get first 3 columns
+            og = pd.read_csv(fullpath+"/"+f, parse_dates=True,header = 0)
+
+            df = og[['ADXL345 X', 'ADXL345 Y', 'ADXL345 Z']] #get first 3 columns
             df.columns = ['accelerometerAccelerationX(G)', 'accelerometerAccelerationY(G)', 'accelerometerAccelerationZ(G)']
-            for column in df:
-                df[column] = pd.to_numeric(df[column], errors = 'coerce') 
-                df[column] = df[column]*((2*16)/(2^13))
+            df = df*((2*16)/(2**13))
+                
+            df.to_csv("../converted_data/sisFall_dataset/"+s+"/"+f)
             
-            df.to_csv("../converted_data/sisFall_dataset/"+f)
 
 def convert_sisFall():
     path = "../data/"
