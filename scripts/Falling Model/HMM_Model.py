@@ -3,7 +3,7 @@
 import glob
 import os
 import pandas as pd
-
+import numpy as np
 def make_supervised():
     #1 = fall
     #0 = not fall
@@ -40,13 +40,94 @@ def make_supervised():
             print(num+"_"+subject+"_"+trial)
             
 
-def extract_features():
-    #train on 80%
-    #30% of the 80% validate
-    print("hi")
+def extract_features(raw_data):
+    features = pd.DataFrame()
+    features['A_svm'] = np.sqrt(((raw_data["accelerometerAccelerationX(G)"]**2) + (raw_data["accelerometerAccelerationY(G)"]**2) +(raw_data["accelerometerAccelerationZ(G)"]**2)).astype(float))    
+    features['theta'] = np.arctan((np.sqrt(((raw_data["accelerometerAccelerationX(G)"]**2)+(raw_data["accelerometerAccelerationZ(G)"]**2)).astype(float))/(raw_data["accelerometerAccelerationX(G)"])).astype(float))*(180/np.pi)
+    features["A_dsvm"] = np.sqrt(((raw_data["accelerometerAccelerationX(G)"].diff())**2 + (raw_data["accelerometerAccelerationY(G)"].diff())**2 + (raw_data["accelerometerAccelerationZ(G)"].diff())**2).astype(float))
+    features["A_gsvm"] = (features['theta']/90)*features["A_svm"]
+    features["A_gdsvm"] = (features['theta']/90)*features["A_dsvm"]
+    return features
+
+'''
+def rolling_window(features, name, ty):
+    def to_supervised(df, n_input, col):
+        x = []
+        for i in range(df.shape[0]): #moving by 1, could move by n_input
+            in_end = i + n_input
+            if in_end <= df.shape[0]:
+                x_input = np.array(df.iloc[i:in_end, col])
+                x.append(x_input)
+            
+        x = np.array(x)
+        
+        return x
+    #convert each feature into a rolling window
+    n = 10
+    a_svm = pd.DataFrame(to_supervised(features, n, 0))
+    theta = pd.DataFrame(to_supervised(features, n, 1))
+    a_dsvm = pd.DataFrame(to_supervised(features, n, 2))
+    a_gsvm = pd.DataFrame(to_supervised(features, n, 3))
+    a_gdsvm = pd.DataFrame(to_supervised(features, n, 4))
     
+    pd.DataFrame(a_svm).to_csv("formatted_data/"+ty+"/"+name+"_asvm.csv")
+    pd.DataFrame(theta).to_csv("formatted_data/"+ty+"/"+name+"_theta.csv")
+    pd.DataFrame(a_dsvm).to_csv("formatted_data/"+ty+"/"+name+"_adsvm.csv")
+    pd.DataFrame(a_gsvm).to_csv("formatted_data/"+ty+"/"+name+"_agsvm.csv")
+    pd.DataFrame(a_gdsvm).to_csv("formatted_data/"+ty+"/"+name+"_agdsvm.csv")
+'''
+
+def format_data():
+    path = "sup_fall_data/" 
+    folders = os.listdir(path)
+    
+    #1786 = (24+70) simulated trials * 20 participants
+    sets = [] #list of all observation sequences, each as an array
+    lengths = []
+    
+    for folder in folders:
+        files = glob.glob(path+folder+"/*.csv")
+        for f in files:
+            #get the name
+            sp = f.split("_")
+            trial = sp[-1]
+            subject = sp[-2]
+            if (("SA20" in subject) | ("SA21" in subject) | ("SA22" in subject) | ("SA23" in subject)):
+                continue #don't collect training data for these people
+            
+            if("F" in sp[-3]):
+                num = sp[-3].split("F")[-1]
+                num = "F"+num
+                
+            else:
+                num = sp[-3].split("D")[-1]
+                num = "D"+num
+                
+            name = subject+"/"+num+"_"+subject+"_"+trial
+            
+            data = pd.read_csv(f)
+            data = data[["accelerometerAccelerationX(G)","accelerometerAccelerationY(G)","accelerometerAccelerationZ(G)"]]
+            data["accelerometerAccelerationX(G)"] = pd.to_numeric(data["accelerometerAccelerationX(G)"], errors = 'coerce') 
+            data["accelerometerAccelerationY(G)"] = pd.to_numeric(data["accelerometerAccelerationY(G)"], errors = 'coerce') 
+            data["accelerometerAccelerationZ(G)"] = pd.to_numeric(data["accelerometerAccelerationZ(G)"], errors = 'coerce') 
+            data = extract_features(data)
+            data.dropna(axis=0, inplace=True)
+            
+            #add each sequence to the training set of sequences
+            sequence = data.to_numpy() #array of rows, where each row is an array
+            sets.append(sequence) #array of vectors at each element of X
+            lengths.append(sequence.shape[0]) #length of sequence
+            
+    X = np.concatenate(sets)
+    
+    return X, np.array(lengths)
+
+def main():
+    X, lengths = format_data()
+    
+
 if __name__ == "__main__":
-    make_supervised()
+    main()
 
             
             

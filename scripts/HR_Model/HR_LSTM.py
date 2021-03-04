@@ -245,6 +245,8 @@ def main():
     100 epochs, early stop at 50
     nu = 0.0001
     30%
+    model #18
+    im on the verge of a breakdown i stg dont touch any of these params oh my god
     '''
     n_in = 15
     n_out = 10
