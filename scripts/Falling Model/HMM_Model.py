@@ -4,6 +4,11 @@ import glob
 import os
 import pandas as pd
 import numpy as np
+import pickle
+import hmmlearn 
+from hmmlearn.hmm import GaussianHMM
+from sklearn.preprocessing import MinMaxScaler
+
 def make_supervised():
     #1 = fall
     #0 = not fall
@@ -97,13 +102,17 @@ def format_data():
             
             if("F" in sp[-3]):
                 num = sp[-3].split("F")[-1]
+                if ("07" in num):
+                    continue
                 num = "F"+num
                 
             else:
                 num = sp[-3].split("D")[-1]
+                if not (("01" in num) | ("02" in num) | ("03" in num) | ("04" in num) | ("14" in num) | ("15" in num) | ("18" in num) | ("19" in num)):
+                    continue
                 num = "D"+num
                 
-            name = subject+"/"+num+"_"+subject+"_"+trial
+            name = num+"_"+subject+"_"+trial
             
             data = pd.read_csv(f)
             data = data[["accelerometerAccelerationX(G)","accelerometerAccelerationY(G)","accelerometerAccelerationZ(G)"]]
@@ -118,13 +127,57 @@ def format_data():
             sets.append(sequence) #array of vectors at each element of X
             lengths.append(sequence.shape[0]) #length of sequence
             
+            print(name)
+            
     X = np.concatenate(sets)
+    print(sum(lengths))
+    print(X.shape[0])
     
     return X, np.array(lengths)
 
+def fitHMM(X):
+        #Normalize
+        scaler = MinMaxScaler(feature_range=(0,1))
+        X = scaler.fit_transform(X)
+        
+        shaped_X = np.reshape(X, [len(X), 5])
+        model = GaussianHMM(n_components=2).fit(shaped_X)
+        
+        #fall = 1, no fall = 0
+        hidden_states = model.predict(shaped_X)
+        
+        #get parameters of Gaussian HMM
+        mus = np.array(model.means_)
+        sigmas = np.array(np.sqrt(np.array([np.diag(model.covars_[0]),np.diag(model.covars_[1])])))
+        P = np.array(model.transmat_)
+        
+        # find log-likelihood of Gaussian HMM
+        logProb = model.score(np.reshape(X,[len(X),1]))
+        
+        # re-organize mus, sigmas and P so that first row is lower mean (if not already)
+        if mus[0] > mus[1]:
+            mus = np.flipud(mus)
+            sigmas = np.flipud(sigmas)
+            P = np.fliplr(np.flipud(P))
+            hidden_states = 1 - hidden_states
+            
+        return hidden_states, mus, sigmas, P, logProb
+
 def main():
     X, lengths = format_data()
+    #X has shape (num samples, num features)
     
+    # load data we want to classify (training data?)
+    df = X[0:(lengths[0]-1)] #first set of training data
+     
+    #Normalize
+    scaler = MinMaxScaler(feature_range=(0,1))
+    df = scaler.fit_transform(df)
+    
+    # log transform the data and fit the HMM
+    log_data = np.log(df)
+    hidden_states, mus, sigmas, P, logProb = fitHMM(log_data)
+    print("hi")
 
 if __name__ == "__main__":
     main()
