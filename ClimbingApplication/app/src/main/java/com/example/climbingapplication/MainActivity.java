@@ -27,6 +27,7 @@ public class MainActivity extends AppCompatActivity {
         //Create and Fill User Database
         userDb = openOrCreateDatabase("userData",MODE_PRIVATE,null);
         userDb.execSQL("CREATE TABLE IF NOT EXISTS Data(FirstName VARCHAR,LastName VARCHAR,Age INTEGER,Weight FLOAT, Height INTEGER, Sex CHAR);");
+        userDb.execSQL("INSERT INTO Data VALUES('Alex','Ingham', '21', '1', '2', 'M');");
 
         //Create and Fill Climbing Database
         localDb = openOrCreateDatabase("incomingData",MODE_PRIVATE,null);

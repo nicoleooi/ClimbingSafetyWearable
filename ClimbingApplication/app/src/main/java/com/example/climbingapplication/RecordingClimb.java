@@ -1,20 +1,39 @@
 package com.example.climbingapplication;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.StrictMode;
 import android.os.SystemClock;
+import android.renderscript.Sampler;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Chronometer;
 import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import java.io.BufferedReader;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.nio.Buffer;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -30,8 +49,20 @@ import com.android.volley.toolbox.Volley;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+import com.opencsv.CSVReader;
+import java.io.IOException;
+import java.io.FileReader;
+
 
 public class RecordingClimb extends MainActivity {
 
@@ -45,17 +76,44 @@ public class RecordingClimb extends MainActivity {
     private Button profileButton;
     private Button mapsButton;
     private RequestQueue requestQueue;
-    private TextView tempText, humidityText, speedText, visibilityText, weatherDescription;
+    private TextView tempText, humidityText, speedText, visibilityText, weatherDescription, testcsvText;
     private ImageView weatherImage;
     private String apiKey;
     private float[] weatherResponse = new float[8];
     private float timeClimbedFor;
     private String fields[] = {"temperatureApparent", "humidity", "windSpeed", "precipitationIntensity", "precipitationProbability", "precipitationType", "visibility", "weatherCode"};
+    private static final int REQUEST_CALL = 1;
+    private ListView listView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_recording_climb);
+
+        Context context = getApplicationContext();
+        FirebaseApp.initializeApp(context);
+        listView = findViewById(R.id.listView);         //Setting up the list view
+        ArrayList<String> list = new ArrayList<>();
+        ArrayAdapter adapter = new ArrayAdapter<String>(this, R.layout.list_item, list);
+        listView.setAdapter(adapter);
+
+        //Create Database Reference to firebase
+        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child("HR");
+        reference.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                list.clear();
+                for (DataSnapshot snap : snapshot.getChildren()){
+                    list.add(snap.getValue().toString());
+                }
+                adapter.notifyDataSetChanged();
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+
+            }
+        });
 
         //Create and Fill Local Database
 //        localDb = openOrCreateDatabase("incomingData",MODE_PRIVATE,null);
@@ -67,8 +125,8 @@ public class RecordingClimb extends MainActivity {
         RecordingClimb.testAzureDB tdb = new RecordingClimb.testAzureDB();
         tdb.execute("");
 
-        latitude = 44.23;
-        longitude = -76.50;
+        latitude = 44.6295;
+        longitude = -63.5875;
 
         mapsButton = findViewById(R.id.mapsButton);
         mapsButton.setOnClickListener(new View.OnClickListener() {
@@ -126,7 +184,27 @@ public class RecordingClimb extends MainActivity {
         requestQueue = Volley.newRequestQueue(this);
         String url = "https://api.climacell.co/v4/locations?apikey=jFNGDUXBapyjnShPufxJHL6YsCvedU9v";
         requestWithSomeHttpHeaders();
+
     }
+
+    public void readCSV(){
+        InputStream is = getResources().openRawResource(R.raw.testfile);
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+        try{
+            String line = reader.readLine();
+            while(line != null){
+                line = reader.readLine();   //Start at second line as first one is headers
+                String[] values = line.split(",");  //CSV is comma delimited
+                for (int i=0; i<values.length; i++){
+                    System.out.println(values[i]);
+                }
+                float f = Float.parseFloat(values[0]);
+            }
+        } catch (Exception e){
+            System.out.println(e.getMessage());
+        }
+    }
+
 
     public void requestWithSomeHttpHeaders() {
         RequestQueue queue = Volley.newRequestQueue(this);
@@ -160,6 +238,39 @@ public class RecordingClimb extends MainActivity {
                 }
         );
         queue.add(getRequest);
+    }
+
+    public void makeToast(String toastMessage){
+        Context context = getApplicationContext();
+        CharSequence text = toastMessage;
+        int duration = Toast.LENGTH_LONG;
+        Toast toast = Toast.makeText(context, text, duration);
+        toast.setGravity(Gravity.TOP| Gravity.LEFT, 0, 0);
+        toast.show();
+    }
+
+    public void emergencyCall(){
+        if(ContextCompat.checkSelfPermission(RecordingClimb.this, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(RecordingClimb.this, new String[] {Manifest.permission.CALL_PHONE}, REQUEST_CALL);
+        }
+        else{
+            Intent callIntent = new Intent(Intent.ACTION_CALL);
+            callIntent.setData(Uri.parse("tel:+1-902-430-6480"));
+            startActivity(callIntent);
+        }
+
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if(requestCode == REQUEST_CALL){
+            if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+                emergencyCall();
+            }
+            else{
+                Toast.makeText(this, "Permission Denied", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     public void parseResponse(String response){
@@ -309,6 +420,13 @@ public class RecordingClimb extends MainActivity {
             timeClimbedFor = SystemClock.elapsedRealtime() - chronometer.getBase();
             climbingFlag = false;
         }
+    }
+
+    public double getLongitude(){
+        return longitude;
+    }
+    public double getLatitude(){
+        return latitude;
     }
 
     public String testRetrieve(SQLiteDatabase localDb) {        //Method used to access local database
