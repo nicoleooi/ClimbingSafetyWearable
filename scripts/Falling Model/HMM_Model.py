@@ -8,6 +8,9 @@ import pickle
 import hmmlearn 
 from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import MinMaxScaler
+from matplotlib import pyplot as plt
+import seaborn as sns
+from scipy import stats as ss
 
 def make_supervised():
     #1 = fall
@@ -87,9 +90,23 @@ def format_data():
     folders = os.listdir(path)
     
     #1786 = (24+70) simulated trials * 20 participants
-    sets = [] #list of all observation sequences, each as an array
-    lengths = []
+    adl_sets = [] #list of all observation sequences, each as an array
+    adl_lengths = []
+    anames = []
+    astarts = []
+    aends = []
+    anext_start = 0
     
+    fall_sets = []
+    fall_lengths = []
+    fnames = []
+    fstarts = []
+    fends = []
+    fnext_start = 0
+
+    
+    fall = 0; #fall is false
+
     for folder in folders:
         files = glob.glob(path+folder+"/*.csv")
         for f in files:
@@ -105,12 +122,14 @@ def format_data():
                 if ("07" in num):
                     continue
                 num = "F"+num
+                fall = 1
                 
             else:
                 num = sp[-3].split("D")[-1]
                 if not (("01" in num) | ("02" in num) | ("03" in num) | ("04" in num) | ("14" in num) | ("15" in num) | ("18" in num) | ("19" in num)):
                     continue
                 num = "D"+num
+                fall = 0
                 
             name = num+"_"+subject+"_"+trial
             
@@ -122,65 +141,144 @@ def format_data():
             data = extract_features(data)
             data.dropna(axis=0, inplace=True)
             
-            #add each sequence to the training set of sequences
+            #add each sequence to the correct training set of sequences
             sequence = data.to_numpy() #array of rows, where each row is an array
-            sets.append(sequence) #array of vectors at each element of X
-            lengths.append(sequence.shape[0]) #length of sequence
+            
+            if(fall): #fall data organized separately
+                fall_sets.append(sequence) #array of vectors at each element of X
+                fall_lengths.append(sequence.shape[0]) #length of sequence
+                #track the start and end of each training file so I know where it sits in the list
+                fstarts.append(fnext_start)
+                fends.append(fnext_start + sequence.shape[0] -1)
+                fnext_start = fnext_start + sequence.shape[0]
+                fnames.append(name) #track the name so I can print the index
+            
+            else: #do the same for adl separately
+                adl_sets.append(sequence) #array of vectors at each element of X
+                adl_lengths.append(sequence.shape[0]) #length of sequence
+                #track the start and end of each training file so I know where it sits in the list
+                astarts.append(anext_start)
+                aends.append(anext_start + sequence.shape[0] -1)
+                anext_start = anext_start + sequence.shape[0]
+                anames.append(name) #track the name so I can print the index            
             
             print(name)
             
-    X = np.concatenate(sets)
-    print(sum(lengths))
-    print(X.shape[0])
+    fall_X = np.concatenate(fall_sets)
+    adl_X = np.concatenate(adl_sets)
     
-    return X, np.array(lengths)
+    writer = pd.ExcelWriter('fall_training_data.xlsx', engine = 'xlsxwriter')
+    pd.DataFrame(fnames).to_excel(writer, sheet_name= "names", index=False, header=False)
+    pd.DataFrame(fstarts).to_excel(writer, sheet_name= "starts", index=False, header=False)
+    pd.DataFrame(fends).to_excel(writer, sheet_name= "ends", index=False, header=False)
+    writer.save()
+    
+    writer = pd.ExcelWriter('adl_training_data.xlsx', engine = 'xlsxwriter')
+    pd.DataFrame(anames).to_excel(writer, sheet_name= "names", index=False, header=False)
+    pd.DataFrame(astarts).to_excel(writer, sheet_name= "starts", index=False, header=False)
+    pd.DataFrame(aends).to_excel(writer, sheet_name= "ends", index=False, header=False)
+    writer.save()
+    
+    return fall_X, adl_X, np.array(fall_lengths), np.array(adl_lengths)
 
-def fitHMM(X):
+def fitHMM(X, lengths, n_states, iters):
+        '''
         #Normalize
         scaler = MinMaxScaler(feature_range=(0,1))
         X = scaler.fit_transform(X)
-        
+        '''
         shaped_X = np.reshape(X, [len(X), 5])
-        model = GaussianHMM(n_components=2).fit(shaped_X)
+        
+        #n_components = 2 bc 2 hidden states
+        #pass in shaped data
+        #pass in lengths
+        
+        model = GaussianHMM(n_components=n_states, n_iter=iters, verbose=True)
+        model.fit(shaped_X, lengths)
         
         #fall = 1, no fall = 0
         hidden_states = model.predict(shaped_X)
         
-        #get parameters of Gaussian HMM
+        #get final parameters of Gaussian HMM
         mus = np.array(model.means_)
         sigmas = np.array(np.sqrt(np.array([np.diag(model.covars_[0]),np.diag(model.covars_[1])])))
         P = np.array(model.transmat_)
-        
-        # find log-likelihood of Gaussian HMM
-        logProb = model.score(np.reshape(X,[len(X),1]))
-        
-        # re-organize mus, sigmas and P so that first row is lower mean (if not already)
-        if mus[0] > mus[1]:
-            mus = np.flipud(mus)
-            sigmas = np.flipud(sigmas)
-            P = np.fliplr(np.flipud(P))
-            hidden_states = 1 - hidden_states
-            
-        return hidden_states, mus, sigmas, P, logProb
 
-def main():
-    X, lengths = format_data()
+        return hidden_states, mus, sigmas, P, model
+
+def guess_labels():
+    path = "sup_fall_data/SA01/"
+
+def train():
+    #chose 14 types of falls and 8 adls to train on 
+    fall_states = 14
+    adl_states = 8
+    fall_X, adl_X, fall_lengths, adl_lengths = format_data()
     #X has shape (num samples, num features)
     
     # load data we want to classify (training data?)
-    df = X[0:(lengths[0]-1)] #first set of training data
-     
-    #Normalize
-    scaler = MinMaxScaler(feature_range=(0,1))
-    df = scaler.fit_transform(df)
     
-    # log transform the data and fit the HMM
-    log_data = np.log(df)
-    hidden_states, mus, sigmas, P, logProb = fitHMM(log_data)
-    print("hi")
+    f_hidden_states, f_mus, f_sigmas, f_P, fall_model = fitHMM(fall_X, fall_lengths, fall_states, 10)
+    a_hidden_states, a_mus, a_sigmas, a_P, adl_model = fitHMM(adl_X, adl_lengths, adl_states, 10)
+    
+    return fall_model, adl_model
+    
+def test(fall_model, adl_model):
+    path = "sup_fall_data/" 
+    folders = os.listdir(path)
+    results = []
+    
+    for folder in folders:
+        files = glob.glob(path+folder+"/*.csv")
+        for f in files:
+            #get the name
+            sp = f.split("_")
+            trial = sp[-1]
+            subject = sp[-2]
+            if not (("SA20" in subject) | ("SA21" in subject) | ("SA22" in subject) | ("SA23" in subject)):
+                continue #these people were in the training category, not testing category
+            
+            if("F" in sp[-3]):
+                num = sp[-3].split("F")[-1]
+                if ("07" in num):
+                    continue
+                num = "F"+num
+                fall = 1
+                
+            else:
+                num = sp[-3].split("D")[-1]
+                if not (("01" in num) | ("02" in num) | ("03" in num) | ("04" in num) | ("14" in num) | ("15" in num) | ("18" in num) | ("19" in num)):
+                    continue
+                num = "D"+num
+                fall = 0
+                
+            name = num+"_"+subject+"_"+trial
+            rslt = tuple()
+            
+            data = pd.read_csv(f)
+            data = data[["accelerometerAccelerationX(G)","accelerometerAccelerationY(G)","accelerometerAccelerationZ(G)"]]
+            data["accelerometerAccelerationX(G)"] = pd.to_numeric(data["accelerometerAccelerationX(G)"], errors = 'coerce') 
+            data["accelerometerAccelerationY(G)"] = pd.to_numeric(data["accelerometerAccelerationY(G)"], errors = 'coerce') 
+            data["accelerometerAccelerationZ(G)"] = pd.to_numeric(data["accelerometerAccelerationZ(G)"], errors = 'coerce') 
+            data = extract_features(data)
+            data.dropna(axis=0, inplace=True)
+            
+            #add each sequence to the correct training set of sequences
+            sequence = data.to_numpy() #array of rows, where each row is an array
+            
+            fall_score = fall_model.score(sequence)
+            adl_score = adl_model.score(sequence)
+            
+            rslt = (name, (fall_score > adl_score), fall)
+            results.append(rslt)
+            
+    df = pd.DataFrame(results, columns = ["sample", "class", "truth_label" ])
+    correct = df[df["class"] == df["truth_label"]]  
+    acc = sum(correct)/len(df)          
 
 if __name__ == "__main__":
-    main()
+    fall_model, adl_model = train()
+    test(fall_model, adl_model)
 
             
             
