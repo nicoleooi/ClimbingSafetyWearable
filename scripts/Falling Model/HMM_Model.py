@@ -4,7 +4,7 @@ import glob
 import os
 import pandas as pd
 import numpy as np
-import pickle
+import joblib
 import hmmlearn 
 from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import MinMaxScaler
@@ -194,7 +194,9 @@ def fitHMM(X, lengths, n_states, iters):
         #pass in lengths
         
         model = GaussianHMM(n_components=n_states, n_iter=iters, verbose=True)
+        #add convergence monitor here
         model.fit(shaped_X, lengths)
+        print(model.monitor_.converged)
         
         #fall = 1, no fall = 0
         hidden_states = model.predict(shaped_X)
@@ -217,9 +219,11 @@ def train():
     #X has shape (num samples, num features)
     
     # load data we want to classify (training data?)
-    
-    f_hidden_states, f_mus, f_sigmas, f_P, fall_model = fitHMM(fall_X, fall_lengths, fall_states, 10)
-    a_hidden_states, a_mus, a_sigmas, a_P, adl_model = fitHMM(adl_X, adl_lengths, adl_states, 10)
+    iters = 10
+    f_hidden_states, f_mus, f_sigmas, f_P, fall_model = fitHMM(fall_X, fall_lengths, fall_states, iters)
+    a_hidden_states, a_mus, a_sigmas, a_P, adl_model = fitHMM(adl_X, adl_lengths, adl_states, iters)
+    joblib.dump(fall_model, "models/fall_models/model_"+str(iters)+".joblib")
+    joblib.dump(adl_model, "models/adl_models/model_"+str(iters)+".joblib")
     
     return fall_model, adl_model
     
@@ -273,8 +277,10 @@ def test(fall_model, adl_model):
             results.append(rslt)
             
     df = pd.DataFrame(results, columns = ["sample", "class", "truth_label" ])
+    df.to_csv("models/tested.csv", index=False)
     correct = df[df["class"] == df["truth_label"]]  
-    acc = sum(correct)/len(df)          
+    acc = sum(correct)/len(df)
+    print(acc)          
 
 if __name__ == "__main__":
     fall_model, adl_model = train()
