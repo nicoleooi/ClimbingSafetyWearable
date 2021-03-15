@@ -181,7 +181,7 @@ def format_data():
     
     return fall_X, adl_X, np.array(fall_lengths), np.array(adl_lengths)
 
-def fitHMM(X, lengths, n_states, iters):
+def fitHMM(X, lengths, n_states, iters, file_path):
         '''
         #Normalize
         scaler = MinMaxScaler(feature_range=(0,1))
@@ -205,11 +205,12 @@ def fitHMM(X, lengths, n_states, iters):
         mus = np.array(model.means_)
         sigmas = np.array(np.sqrt(np.array([np.diag(model.covars_[0]),np.diag(model.covars_[1])])))
         P = np.array(model.transmat_)
+        
+        #pickle the model
+        joblib.dump(model, file_path)
 
         return hidden_states, mus, sigmas, P, model
 
-def guess_labels():
-    path = "sup_fall_data/SA01/"
 
 def train():
     #chose 14 types of falls and 8 adls to train on 
@@ -219,15 +220,13 @@ def train():
     #X has shape (num samples, num features)
     
     # load data we want to classify (training data?)
-    iters = 10
-    f_hidden_states, f_mus, f_sigmas, f_P, fall_model = fitHMM(fall_X, fall_lengths, fall_states, iters)
-    a_hidden_states, a_mus, a_sigmas, a_P, adl_model = fitHMM(adl_X, adl_lengths, adl_states, iters)
-    joblib.dump(fall_model, "models/fall_models/model_"+str(iters)+".joblib")
-    joblib.dump(adl_model, "models/adl_models/model_"+str(iters)+".joblib")
-    
+    iters = 20
+    f_hidden_states, f_mus, f_sigmas, f_P, fall_model = fitHMM(fall_X, fall_lengths, fall_states, iters, "models/fall_models/model_"+str(iters)+".joblib")
+    a_hidden_states, a_mus, a_sigmas, a_P, adl_model = fitHMM(adl_X, adl_lengths, adl_states, iters, "models/adl_models/model_"+str(iters)+".joblib")
+
     return fall_model, adl_model
     
-def test(fall_model, adl_model):
+def test(fall_model, adl_model, iters):
     path = "sup_fall_data/" 
     folders = os.listdir(path)
     results = []
@@ -267,24 +266,22 @@ def test(fall_model, adl_model):
             data = extract_features(data)
             data.dropna(axis=0, inplace=True)
             
-            #add each sequence to the correct training set of sequences
+            #add each sequence to the correct training set of sequence
             sequence = data.to_numpy() #array of rows, where each row is an array
             
             fall_score = fall_model.score(sequence)
             adl_score = adl_model.score(sequence)
             
-            rslt = (name, (fall_score > adl_score), fall)
+            rslt = (name, fall_score, adl_score, int(fall_score > adl_score), fall)
             results.append(rslt)
             
-    df = pd.DataFrame(results, columns = ["sample", "class", "truth_label" ])
-    df.to_csv("models/tested.csv", index=False)
-    correct = df[df["class"] == df["truth_label"]]  
-    acc = sum(correct)/len(df)
-    print(acc)          
+    df = pd.DataFrame(results, columns = ["sample", "fall_score", "adl_score", "class", "truth_label" ])
+    df.to_csv("models/tested_"+str(iters)+".csv", index=False)
+          
 
 if __name__ == "__main__":
     fall_model, adl_model = train()
-    test(fall_model, adl_model)
+    test(fall_model, adl_model, 20)
 
             
             
