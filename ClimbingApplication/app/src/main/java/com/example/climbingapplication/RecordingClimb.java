@@ -62,6 +62,7 @@ import com.google.firebase.database.ValueEventListener;
 import com.opencsv.CSVReader;
 import java.io.IOException;
 import java.io.FileReader;
+import org.json.*;
 
 
 public class RecordingClimb extends MainActivity {
@@ -84,11 +85,14 @@ public class RecordingClimb extends MainActivity {
     private String fields[] = {"temperatureApparent", "humidity", "windSpeed", "precipitationIntensity", "precipitationProbability", "precipitationType", "visibility", "weatherCode"};
     private static final int REQUEST_CALL = 1;
     private ListView listView;
+    private int numPackets;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_recording_climb);
+
+        numPackets = 0;
 
         Context context = getApplicationContext();
         FirebaseApp.initializeApp(context);
@@ -98,17 +102,29 @@ public class RecordingClimb extends MainActivity {
         listView.setAdapter(adapter);
 
         //Create Database Reference to firebase
-        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child("HR");
+        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child("Packets_"+Integer.toString(numPackets));
         reference.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 list.clear();
                 for (DataSnapshot snap : snapshot.getChildren()){
-                    list.add(snap.getValue().toString());
+                    String pack = snap.getValue().toString();
+                    try {
+                        JSONObject obj = new JSONObject(pack);
+                        float HR = Float.parseFloat(obj.getString("HR"));
+                        float longitude = Float.parseFloat(obj.getString("Long"));
+                        float latitude = Float.parseFloat(obj.getString("Lat"));
+                        float AccelX = Float.parseFloat(obj.getString("AccelX"));
+                        float AccelY = Float.parseFloat(obj.getString("AccelY"));
+                        float AccelZ = Float.parseFloat(obj.getString("AccelZ"));
+                        list.add("HR: "+HR+"\nAccelX: "+AccelX+"\nAccelY: "+AccelY+"\nAccelZ: "+AccelZ+"\nLongitude: "+longitude+"\nLatitude: "+latitude);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
                 }
                 adapter.notifyDataSetChanged();
+                numPackets ++;
             }
-
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
 
