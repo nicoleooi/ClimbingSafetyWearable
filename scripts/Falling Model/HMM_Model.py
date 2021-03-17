@@ -212,7 +212,7 @@ def fitHMM(X, lengths, n_states, iters, file_path):
         return hidden_states, mus, sigmas, P, model
 
 
-def train():
+def train(iters):
     #chose 14 types of falls and 8 adls to train on 
     fall_states = 14
     adl_states = 8
@@ -220,7 +220,6 @@ def train():
     #X has shape (num samples, num features)
     
     # load data we want to classify (training data?)
-    iters = 20
     f_hidden_states, f_mus, f_sigmas, f_P, fall_model = fitHMM(fall_X, fall_lengths, fall_states, iters, "models/fall_models/model_"+str(iters)+".joblib")
     a_hidden_states, a_mus, a_sigmas, a_P, adl_model = fitHMM(adl_X, adl_lengths, adl_states, iters, "models/adl_models/model_"+str(iters)+".joblib")
 
@@ -272,7 +271,11 @@ def test(fall_model, adl_model, iters):
             fall_score = fall_model.score(sequence)
             adl_score = adl_model.score(sequence)
             
-            rslt = (name, fall_score, adl_score, int(fall_score > adl_score), fall)
+            prediction = 0
+            if( fall_score > adl_score):
+                prediction = 1
+            
+            rslt = (name, fall_score, adl_score, prediction, fall)
             results.append(rslt)
             
     df = pd.DataFrame(results, columns = ["sample", "fall_score", "adl_score", "class", "truth_label" ])
@@ -280,8 +283,8 @@ def test(fall_model, adl_model, iters):
           
 
 if __name__ == "__main__":
-    fall_model, adl_model = train()
-    test(fall_model, adl_model, 20)
+    fall_model, adl_model = train(100)
+    test(fall_model, adl_model, 100)
 
             
             
