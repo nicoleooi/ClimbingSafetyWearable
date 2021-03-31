@@ -1,5 +1,4 @@
 package com.example.climbingapplication;
-
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -7,9 +6,11 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.StrictMode;
 import android.os.SystemClock;
 import android.renderscript.Sampler;
@@ -23,11 +24,9 @@ import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-
 import java.io.BufferedReader;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -39,20 +38,26 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
-
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 
+import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.components.Legend;
+import com.github.mikephil.charting.components.XAxis;
+import com.github.mikephil.charting.components.YAxis;
+import com.github.mikephil.charting.data.Entry;
+import com.github.mikephil.charting.data.LineData;
+import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -62,7 +67,9 @@ import com.google.firebase.database.ValueEventListener;
 import com.opencsv.CSVReader;
 import java.io.IOException;
 import java.io.FileReader;
+import java.util.Random;
 import org.json.*;
+
 
 
 public class RecordingClimb extends MainActivity {
@@ -77,7 +84,7 @@ public class RecordingClimb extends MainActivity {
     private Button profileButton;
     private Button mapsButton;
     private RequestQueue requestQueue;
-    private TextView tempText, humidityText, speedText, visibilityText, weatherDescription, testcsvText;
+    private TextView tempText, humidityText, speedText, visibilityText, weatherDescription, hrValue;
     private ImageView weatherImage;
     private String apiKey;
     private float[] weatherResponse = new float[8];
@@ -86,60 +93,105 @@ public class RecordingClimb extends MainActivity {
     private static final int REQUEST_CALL = 1;
     private ListView listView;
     private int numPackets;
+    private LineChart mChart;
+    public float hrForGraph;
+    private Thread thread;
+    public boolean plotData = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_recording_climb);
 
-        numPackets = 0;
 
-        Context context = getApplicationContext();
-        FirebaseApp.initializeApp(context);
-        listView = findViewById(R.id.listView);         //Setting up the list view
-        ArrayList<String> list = new ArrayList<>();
-        ArrayAdapter adapter = new ArrayAdapter<String>(this, R.layout.list_item, list);
-        listView.setAdapter(adapter);
+        //Graph view setup:
+        mChart = (LineChart) findViewById(R.id.chart1);
+        mChart.getDescription().setEnabled(false);
+        mChart.setTouchEnabled(false);
+        mChart.setDragEnabled(false);
+        mChart.setScaleEnabled(false);
+        mChart.setDrawGridBackground(false);
+        mChart.setPinchZoom(false);
+        mChart.setBackgroundColor(Color.WHITE);
+        LineData hrGraphData = new LineData();
+        hrGraphData.setValueTextColor(Color.WHITE);
+        mChart.setData(hrGraphData);
+
+        Legend l = mChart.getLegend();
+        l.setForm(Legend.LegendForm.LINE);
+        l.setTextColor(Color.WHITE);
+
+        XAxis xl = mChart.getXAxis();
+        xl.setTextColor(Color.WHITE);
+        xl.setDrawGridLines(true);
+        xl.setAvoidFirstLastClipping(true);
+        xl.setEnabled(true);
+
+        YAxis leftAxis = mChart.getAxisLeft();
+        leftAxis.setTextColor(Color.WHITE);
+        leftAxis.setDrawGridLines(false);
+        leftAxis.setAxisMaximum(200f);
+        leftAxis.setAxisMinimum(0f);
+        leftAxis.setDrawGridLines(true);
+
+        YAxis rightAxis = mChart.getAxisRight();
+        rightAxis.setEnabled(false);
+        mChart.getAxisLeft().setDrawGridLines(false);
+        mChart.getXAxis().setDrawGridLines(false);
+        mChart.setDrawBorders(false);
+        startPlot();
+
+        numPackets = 0;
+        hrValue = findViewById(R.id.hrValue);
+        //listView = findViewById(R.id.listView);         //Setting up the list view
+        //ArrayList<String> list = new ArrayList<>();
+        //ArrayAdapter adapter = new ArrayAdapter<String>(this, R.layout.list_item, list);
+        //listView.setAdapter(adapter);
 
         //Create Database Reference to firebase
+        Context context = getApplicationContext();
+        FirebaseApp.initializeApp(context);
         DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child("Packets_"+Integer.toString(numPackets));
         reference.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                list.clear();
                 for (DataSnapshot snap : snapshot.getChildren()){
                     String pack = snap.getValue().toString();
                     try {
                         JSONObject obj = new JSONObject(pack);
-                        float HR = Float.parseFloat(obj.getString("HR"));
-                        float longitude = Float.parseFloat(obj.getString("Long"));
-                        float latitude = Float.parseFloat(obj.getString("Lat"));
-                        float AccelX = Float.parseFloat(obj.getString("AccelX"));
-                        float AccelY = Float.parseFloat(obj.getString("AccelY"));
-                        float AccelZ = Float.parseFloat(obj.getString("AccelZ"));
-                        list.add("HR: "+HR+"\nAccelX: "+AccelX+"\nAccelY: "+AccelY+"\nAccelZ: "+AccelZ+"\nLongitude: "+longitude+"\nLatitude: "+latitude);
+                        float A_dsvm = Float.parseFloat(obj.getString("A_dsvm"));
+                        float A_gdsvm = Float.parseFloat(obj.getString("A_gdsvm"));
+                        float A_gsvm = Float.parseFloat(obj.getString("A_gsvm"));
+                        float A_svm = Float.parseFloat(obj.getString("A_svm"));
+                        float HR = Float.parseFloat(obj.getString("BPM"));
+                        float latitude = Float.parseFloat(obj.getString("Latitude"));
+                        float longitude = Float.parseFloat(obj.getString("Longitude"));
+                        float theta = Float.parseFloat(obj.getString("Theta"));
+                        //list.add("HR: "+HR+"\nA_svm: "+A_svm+"\nA_dsvm: "+A_dsvm+"\nA_gsvm: "+A_gsvm+"\nA_gdsvm: "+A_gdsvm+"\nTheta: "+theta+"\nLongitude: "+longitude+"\nLatitude: "+latitude);
+                        hrValue.setText(Float.toString(HR));
+                        hrForGraph = HR;
+                        if (thread != null) {
+                            thread.interrupt();
+                        }
+                        if(plotData){
+                            addHRPoint(hrForGraph);
+                            plotData = false;
+                        }
+                        System.out.println("New HR Value: "+HR);
+                        System.out.println(plotData);
+
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
                 }
-                adapter.notifyDataSetChanged();
+                //adapter.notifyDataSetChanged();
                 numPackets ++;
             }
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-
             }
         });
 
-        //Create and Fill Local Database
-//        localDb = openOrCreateDatabase("incomingData",MODE_PRIVATE,null);
-//        localDb.execSQL("CREATE TABLE IF NOT EXISTS Data(HR VARCHAR,AccelerationX VARCHAR,AccelerationY VARCHAR,AccelerationZ VARCHAR,GPSLong VARCHAR,GPSLat VARCHAR,Time VARCHAR);");
-//        localDb.execSQL("INSERT INTO Data VALUES('92','9.81', '9.81', '9.81', '100', '200', '0');");
-//
-        //Database stuff for later
-        String result = testRetrieve(localDb);
-        RecordingClimb.testAzureDB tdb = new RecordingClimb.testAzureDB();
-        tdb.execute("");
 
         latitude = 44.6295;
         longitude = -63.5875;
@@ -203,26 +255,83 @@ public class RecordingClimb extends MainActivity {
 
     }
 
-    public void readCSV(){
-        InputStream is = getResources().openRawResource(R.raw.testfile);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-        try{
-            String line = reader.readLine();
-            while(line != null){
-                line = reader.readLine();   //Start at second line as first one is headers
-                String[] values = line.split(",");  //CSV is comma delimited
-                for (int i=0; i<values.length; i++){
-                    System.out.println(values[i]);
+    private void startPlot(){
+        if(thread!=null){
+            thread.interrupt();
+        }
+
+        thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while(true){
+                    plotData = true;
+                    try{
+                        Thread.sleep(10);
+                    } catch (InterruptedException e){
+                        e.printStackTrace();
+                    }
                 }
-                float f = Float.parseFloat(values[0]);
             }
-        } catch (Exception e){
-            System.out.println(e.getMessage());
+        });
+    }
+
+    @Override
+    protected void onPostResume(){
+        super.onPostResume();
+    }
+
+    @Override
+    protected void onDestroy(){
+        thread.interrupt();
+        super.onDestroy();
+    }
+
+    @Override
+    protected void onPause(){
+        super.onPause();
+        if(thread != null){
+            thread.interrupt();
         }
     }
 
+    public void addHRPoint(float point){
+        LineData data = mChart.getData();
+        System.out.println("DATA: "+data);
+        if(data != null){
+            ILineDataSet set = data.getDataSetByIndex(0);
+            System.out.println("AHHHHHHHHHHHHHHHH___Data was null" + set);
+            System.out.println("DATA__1: "+data);
+            if(set==null){
+                set = createSet();
+                data.addDataSet(set);
+            }
 
-    public void requestWithSomeHttpHeaders() {
+            data.addEntry(new Entry(set.getEntryCount(), point), 0);
+            System.out.println("AHHHHHHHHHHHHHHHH___Added Entry");
+            System.out.println("DATA__2: "+data);
+            mChart.notifyDataSetChanged();
+            data.notifyDataChanged();
+            mChart.setMaxVisibleValueCount(10);
+            mChart.moveViewToX(data.getEntryCount());
+        }
+    }
+
+    public LineDataSet createSet(){
+        System.out.println("AHHHHHHHHHHHHHHHH___Called function");
+        LineDataSet set = new LineDataSet(null, "Dynamic Data");
+        set.setAxisDependency(YAxis.AxisDependency.LEFT);
+        set.setLineWidth(3);
+        set.setColor(Color.BLUE);
+        set.setDrawValues(false);
+        set.setDrawCircles(false);
+        set.setMode(LineDataSet.Mode.CUBIC_BEZIER);
+        set.setCubicIntensity(0.2f);
+        return set;
+    }
+
+
+
+    public void requestWithSomeHttpHeaders() {                                                          //Access ClimaCell API
         RequestQueue queue = Volley.newRequestQueue(this);
         String url = "https://data.climacell.co/v4/timelines?location="+latitude+"%2C"+longitude;
         for (int i=0; i<fields.length; i++){
@@ -271,7 +380,7 @@ public class RecordingClimb extends MainActivity {
         }
         else{
             Intent callIntent = new Intent(Intent.ACTION_CALL);
-            callIntent.setData(Uri.parse("tel:+1-902-430-6480"));
+            callIntent.setData(Uri.parse("tel:+911"));
             startActivity(callIntent);
         }
 
@@ -443,13 +552,6 @@ public class RecordingClimb extends MainActivity {
     }
     public double getLatitude(){
         return latitude;
-    }
-
-    public String testRetrieve(SQLiteDatabase localDb) {        //Method used to access local database
-        Cursor resultSet = localDb.rawQuery("Select * from Data",null);
-        resultSet.moveToFirst();
-        String HR = resultSet.getString(0);
-        return HR;
     }
 
     public class testAzureDB extends AsyncTask<String, String, String> {     //Class to access azure DB

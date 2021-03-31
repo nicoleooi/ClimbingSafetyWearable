@@ -13,7 +13,6 @@ public class ClimbPage extends MainActivity {
     private Button startButton;
     public Boolean readyFlag;
 
-    public CSVFile csvFile;
     public double longitude;
     public double latitude;
     private Button homeButton;
