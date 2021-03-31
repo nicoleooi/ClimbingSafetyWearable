@@ -119,14 +119,14 @@ def format_data():
             
             if("F" in sp[-3]):
                 num = sp[-3].split("F")[-1]
-                if ("07" in num):
+                if (("07" in num) | ("08" in num) | ("09" in num) | ("10" in num) | ("11" in num) | ("12" in num) | ("13" in num) | ("14" in num) | ("15" in num)):
                     continue
                 num = "F"+num
                 fall = 1
                 
             else:
                 num = sp[-3].split("D")[-1]
-                if not (("01" in num) | ("02" in num) | ("03" in num) | ("04" in num) | ("14" in num) | ("15" in num) | ("18" in num) | ("19" in num)):
+                if not (("01" in num) | ("02" in num) | ("03" in num) | ("04" in num) | ("15" in num) | ("18" in num) | ("19" in num)):
                     continue
                 num = "D"+num
                 fall = 0
@@ -193,7 +193,7 @@ def fitHMM(X, lengths, n_states, iters, file_path):
         #pass in shaped data
         #pass in lengths
         
-        model = GaussianHMM(n_components=n_states, n_iter=iters, verbose=True)
+        model = GaussianHMM(n_components=n_states, n_iter=iters, tol = 0.5, verbose=True)
         #add convergence monitor here
         model.fit(shaped_X, lengths)
         print(model.monitor_.converged)
@@ -212,17 +212,16 @@ def fitHMM(X, lengths, n_states, iters, file_path):
         return hidden_states, mus, sigmas, P, model
 
 
-def train():
-    #chose 14 types of falls and 8 adls to train on 
-    fall_states = 14
-    adl_states = 8
+def train(iters):
+    #chose 6 types of falls and 7 adls to train on 
+    fall_states = 6
+    adl_states = 7
     fall_X, adl_X, fall_lengths, adl_lengths = format_data()
     #X has shape (num samples, num features)
     
     # load data we want to classify (training data?)
-    iters = 20
-    f_hidden_states, f_mus, f_sigmas, f_P, fall_model = fitHMM(fall_X, fall_lengths, fall_states, iters, "models/fall_models/model_"+str(iters)+".joblib")
-    a_hidden_states, a_mus, a_sigmas, a_P, adl_model = fitHMM(adl_X, adl_lengths, adl_states, iters, "models/adl_models/model_"+str(iters)+".joblib")
+    f_hidden_states, f_mus, f_sigmas, f_P, fall_model = fitHMM(fall_X, fall_lengths, fall_states, iters, "models/fall_models/model_v2_"+str(iters)+".joblib")
+    a_hidden_states, a_mus, a_sigmas, a_P, adl_model = fitHMM(adl_X, adl_lengths, adl_states, iters, "models/adl_models/model_v2_"+str(iters)+".joblib")
 
     return fall_model, adl_model
     
@@ -243,14 +242,14 @@ def test(fall_model, adl_model, iters):
             
             if("F" in sp[-3]):
                 num = sp[-3].split("F")[-1]
-                if ("07" in num):
+                if (("07" in num) | ("08" in num) | ("09" in num) | ("10" in num) | ("11" in num) | ("12" in num) | ("13" in num) | ("14" in num) | ("15" in num)):
                     continue
                 num = "F"+num
                 fall = 1
                 
             else:
                 num = sp[-3].split("D")[-1]
-                if not (("01" in num) | ("02" in num) | ("03" in num) | ("04" in num) | ("14" in num) | ("15" in num) | ("18" in num) | ("19" in num)):
+                if not (("01" in num) | ("02" in num) | ("03" in num) | ("04" in num) | ("15" in num) | ("18" in num) | ("19" in num)):
                     continue
                 num = "D"+num
                 fall = 0
@@ -266,22 +265,39 @@ def test(fall_model, adl_model, iters):
             data = extract_features(data)
             data.dropna(axis=0, inplace=True)
             
+            #if length of data longer than 15s, split into 15s or less
+            if(len(data.index) > 15):
+                for i in range(0, len(data.index), 15):
+                    if(i+15 < len(data.index)): #if it's not past the end of the test sequence                     
+                        smol = data.iloc[i:i+15, :] #iloc is EXCLUSIVE of the upper bound
+                    else:
+                        smol = data.iloc[i:len(data.index), :]
+                        
+                    sequence = smol.to_numpy() #array of rows, where each row is an array
+                    fall_score = fall_model.score(sequence)
+                    adl_score = adl_model.score(sequence)
             #add each sequence to the correct training set of sequence
-            sequence = data.to_numpy() #array of rows, where each row is an array
+            else:
+                sequence = data.to_numpy() #array of rows, where each row is an array
+                fall_score = fall_model.score(sequence)
+                adl_score = adl_model.score(sequence)
             
-            fall_score = fall_model.score(sequence)
-            adl_score = adl_model.score(sequence)
+            prediction = 0
+            if( fall_score > adl_score):
+                prediction = 1
             
-            rslt = (name, fall_score, adl_score, int(fall_score > adl_score), fall)
+            rslt = (name, fall_score, adl_score, prediction, fall)
             results.append(rslt)
-            
+            print(name)
     df = pd.DataFrame(results, columns = ["sample", "fall_score", "adl_score", "class", "truth_label" ])
     df.to_csv("models/tested_"+str(iters)+".csv", index=False)
           
 
 if __name__ == "__main__":
-    fall_model, adl_model = train()
-    test(fall_model, adl_model, 20)
+    fall_model, adl_model = train(100)
+    #fall_model = joblib.load("models/fall_models/model_100.joblib")
+    #adl_model = joblib.load("models/adl_models/model_100.joblib")
+    test(fall_model, adl_model, 100)
 
             
             
