@@ -28,10 +28,13 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.Buffer;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -42,6 +45,8 @@ import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
+import com.android.volley.VolleyLog;
+import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 import java.text.DateFormat;
@@ -64,22 +69,25 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.google.gson.Gson;
 import com.opencsv.CSVReader;
 import java.io.IOException;
 import java.io.FileReader;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 import org.json.*;
-
+import java.net.*;
+import com.example.climbingapplication.AzureMLClient;
 
 
 public class RecordingClimb extends MainActivity {
 
-    public Connection con;          //For database connection
     private Button startBtn;
     public Boolean climbingFlag;
     private Chronometer chronometer;
-    public double longitude;
-    public double latitude;
+    public float longitude;
+    public float latitude;
     private Button homeButton;
     private Button profileButton;
     private Button mapsButton;
@@ -91,12 +99,18 @@ public class RecordingClimb extends MainActivity {
     private float timeClimbedFor;
     private String fields[] = {"temperatureApparent", "humidity", "windSpeed", "precipitationIntensity", "precipitationProbability", "precipitationType", "visibility", "weatherCode"};
     private static final int REQUEST_CALL = 1;
-    private ListView listView;
     private int numPackets;
     private LineChart mChart;
-    public float hrForGraph;
+    public float hrForGraphCurr;
+    public float hrForGraphNew;
     private Thread thread;
     public boolean plotData = true;
+    public String adl_scoring_url =  "http://700a2601-5dee-4509-8cd5-8a83683deb76.eastus2.azurecontainer.io/score";     //HMM URLS:
+    public String fall_scoring_url = "http://e7697dac-5e32-4b3d-bf31-12d0779da73c.eastus2.azurecontainer.io/score";
+    public int packetCount = 0;
+    double inputData[][];
+    public boolean climaFlag;
+    public boolean graphFlag;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -116,76 +130,44 @@ public class RecordingClimb extends MainActivity {
         LineData hrGraphData = new LineData();
         hrGraphData.setValueTextColor(Color.WHITE);
         mChart.setData(hrGraphData);
-
-        Legend l = mChart.getLegend();
-        l.setForm(Legend.LegendForm.LINE);
-        l.setTextColor(Color.WHITE);
-
-        XAxis xl = mChart.getXAxis();
-        xl.setTextColor(Color.WHITE);
-        xl.setDrawGridLines(true);
-        xl.setAvoidFirstLastClipping(true);
-        xl.setEnabled(true);
-
-        YAxis leftAxis = mChart.getAxisLeft();
-        leftAxis.setTextColor(Color.WHITE);
-        leftAxis.setDrawGridLines(false);
-        leftAxis.setAxisMaximum(200f);
-        leftAxis.setAxisMinimum(0f);
-        leftAxis.setDrawGridLines(true);
-
-        YAxis rightAxis = mChart.getAxisRight();
-        rightAxis.setEnabled(false);
-        mChart.getAxisLeft().setDrawGridLines(false);
-        mChart.getXAxis().setDrawGridLines(false);
-        mChart.setDrawBorders(false);
         startPlot();
 
         numPackets = 0;
         hrValue = findViewById(R.id.hrValue);
-        //listView = findViewById(R.id.listView);         //Setting up the list view
-        //ArrayList<String> list = new ArrayList<>();
-        //ArrayAdapter adapter = new ArrayAdapter<String>(this, R.layout.list_item, list);
-        //listView.setAdapter(adapter);
-
         //Create Database Reference to firebase
         Context context = getApplicationContext();
         FirebaseApp.initializeApp(context);
-        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child("Packets_"+Integer.toString(numPackets));
+        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child("Packets_0");
         reference.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 for (DataSnapshot snap : snapshot.getChildren()){
                     String pack = snap.getValue().toString();
+                    float A_dsvm, A_gdsvm, A_gsvm, A_svm, HR, lati, longi, theta;
                     try {
                         JSONObject obj = new JSONObject(pack);
-                        float A_dsvm = Float.parseFloat(obj.getString("A_dsvm"));
-                        float A_gdsvm = Float.parseFloat(obj.getString("A_gdsvm"));
-                        float A_gsvm = Float.parseFloat(obj.getString("A_gsvm"));
-                        float A_svm = Float.parseFloat(obj.getString("A_svm"));
-                        float HR = Float.parseFloat(obj.getString("BPM"));
-                        float latitude = Float.parseFloat(obj.getString("Latitude"));
-                        float longitude = Float.parseFloat(obj.getString("Longitude"));
-                        float theta = Float.parseFloat(obj.getString("Theta"));
-                        //list.add("HR: "+HR+"\nA_svm: "+A_svm+"\nA_dsvm: "+A_dsvm+"\nA_gsvm: "+A_gsvm+"\nA_gdsvm: "+A_gdsvm+"\nTheta: "+theta+"\nLongitude: "+longitude+"\nLatitude: "+latitude);
+                        A_dsvm = Float.parseFloat(obj.getString("A_dsvm"));
+                        A_gdsvm = Float.parseFloat(obj.getString("A_gdsvm"));
+                        A_gsvm = Float.parseFloat(obj.getString("A_gsvm"));
+                        A_svm = Float.parseFloat(obj.getString("A_svm"));
+                        HR = Float.parseFloat(obj.getString("BPM"));
+                        lati = Float.parseFloat(obj.getString("Latitude"));
+                        longi = Float.parseFloat(obj.getString("Longitude"));
+                        theta = Float.parseFloat(obj.getString("Theta"));
                         hrValue.setText(Float.toString(HR));
-                        hrForGraph = HR;
-                        if (thread != null) {
-                            thread.interrupt();
+                        setLatitude(lati);            //Needed for ClimaCell GPS Weather Info
+                        setLongitude(longi);
+                        hrForGraphNew = HR;
+                        System.out.println("NEW HR IS: "+HR);
+                        addHRPoint(HR);
+                        if(lati != 0.0 && longi != 0.0){
+                            climaFlag = true;
                         }
-                        if(plotData){
-                            addHRPoint(hrForGraph);
-                            plotData = false;
-                        }
-                        System.out.println("New HR Value: "+HR);
-                        System.out.println(plotData);
-
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
                 }
                 //adapter.notifyDataSetChanged();
-                numPackets ++;
             }
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
@@ -193,14 +175,13 @@ public class RecordingClimb extends MainActivity {
         });
 
 
-        latitude = 44.6295;
-        longitude = -63.5875;
-
         mapsButton = findViewById(R.id.mapsButton);
         mapsButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Intent myIntent = new Intent(RecordingClimb.this, MapsActivity.class);
+                myIntent.putExtra("Latitude", latitude);
+                myIntent.putExtra("Longitude", longitude);
                 RecordingClimb.this.startActivity(myIntent);
             }
         });
@@ -242,6 +223,7 @@ public class RecordingClimb extends MainActivity {
             }
         });
 
+        climaFlag = false;
         apiKey = "VCN07ZizEgitoq6L4I32o199HOojMIYj";
         tempText = findViewById(R.id.temp);
         humidityText = findViewById(R.id.humidityText);
@@ -251,11 +233,18 @@ public class RecordingClimb extends MainActivity {
         weatherDescription = findViewById(R.id.weatherDescription);
         requestQueue = Volley.newRequestQueue(this);
         String url = "https://api.climacell.co/v4/locations?apikey=jFNGDUXBapyjnShPufxJHL6YsCvedU9v";
-        requestWithSomeHttpHeaders();
+
+
+        WaitForGPS w = new WaitForGPS();    //Call ClimaCell Task (Will wait for GPS coords)
+        w.execute();
+
+        PredictFall fPred = new PredictFall();
+        fPred.execute();
 
     }
 
-    private void startPlot(){
+
+    private void startPlot(){               //Method used for plotting HR data on live graph
         if(thread!=null){
             thread.interrupt();
         }
@@ -275,40 +264,16 @@ public class RecordingClimb extends MainActivity {
         });
     }
 
-    @Override
-    protected void onPostResume(){
-        super.onPostResume();
-    }
-
-    @Override
-    protected void onDestroy(){
-        thread.interrupt();
-        super.onDestroy();
-    }
-
-    @Override
-    protected void onPause(){
-        super.onPause();
-        if(thread != null){
-            thread.interrupt();
-        }
-    }
-
-    public void addHRPoint(float point){
+    public void addHRPoint(float point){            //Method used to add a point to the HR graph
         LineData data = mChart.getData();
-        System.out.println("DATA: "+data);
         if(data != null){
             ILineDataSet set = data.getDataSetByIndex(0);
-            System.out.println("AHHHHHHHHHHHHHHHH___Data was null" + set);
-            System.out.println("DATA__1: "+data);
             if(set==null){
                 set = createSet();
                 data.addDataSet(set);
             }
 
             data.addEntry(new Entry(set.getEntryCount(), point), 0);
-            System.out.println("AHHHHHHHHHHHHHHHH___Added Entry");
-            System.out.println("DATA__2: "+data);
             mChart.notifyDataSetChanged();
             data.notifyDataChanged();
             mChart.setMaxVisibleValueCount(10);
@@ -316,8 +281,7 @@ public class RecordingClimb extends MainActivity {
         }
     }
 
-    public LineDataSet createSet(){
-        System.out.println("AHHHHHHHHHHHHHHHH___Called function");
+    public LineDataSet createSet(){                                     //Method used to create datasets for HR graph
         LineDataSet set = new LineDataSet(null, "Dynamic Data");
         set.setAxisDependency(YAxis.AxisDependency.LEFT);
         set.setLineWidth(3);
@@ -331,9 +295,10 @@ public class RecordingClimb extends MainActivity {
 
 
 
-    public void requestWithSomeHttpHeaders() {                                                          //Access ClimaCell API
+    public void requestWithSomeHttpHeaders() {                                                          //Methond used to access ClimaCell API
         RequestQueue queue = Volley.newRequestQueue(this);
-        String url = "https://data.climacell.co/v4/timelines?location="+latitude+"%2C"+longitude;
+        //System.out.println("LATITUDE: "+latitude+" LONGITUDE: "+longitude);
+        String url = "https://data.climacell.co/v4/timelines?location="+longitude+"%2C"+latitude;
         for (int i=0; i<fields.length; i++){
             url += "&fields="+fields[i];
         }
@@ -351,7 +316,7 @@ public class RecordingClimb extends MainActivity {
                     public void onResponse(String response) {
                         // response
                         Log.d("Response", response);
-                        parseResponse(response);
+                        parseClimaResponse(response);
                     }
                 },
                 new Response.ErrorListener()
@@ -365,7 +330,7 @@ public class RecordingClimb extends MainActivity {
         queue.add(getRequest);
     }
 
-    public void makeToast(String toastMessage){
+    public void makeToast(String toastMessage){                 //Method used to create toasts and notify user of something
         Context context = getApplicationContext();
         CharSequence text = toastMessage;
         int duration = Toast.LENGTH_LONG;
@@ -374,7 +339,7 @@ public class RecordingClimb extends MainActivity {
         toast.show();
     }
 
-    public void emergencyCall(){
+    public void emergencyCall(){                    //Method used to simulate call to 911
         if(ContextCompat.checkSelfPermission(RecordingClimb.this, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED){
             ActivityCompat.requestPermissions(RecordingClimb.this, new String[] {Manifest.permission.CALL_PHONE}, REQUEST_CALL);
         }
@@ -398,8 +363,8 @@ public class RecordingClimb extends MainActivity {
         }
     }
 
-    public void parseResponse(String response){
-        System.out.println(response);
+    public void parseClimaResponse(String response){                //Method used to parse the response from ClimaCell API
+        //System.out.println(response);
         for (int i=0; i<fields.length; i++){
             int startIndex, endIndex;
             if(i == fields.length - 1){
@@ -433,7 +398,7 @@ public class RecordingClimb extends MainActivity {
         tempText.setText(Float.toString(weatherResponse[0])+"\u00B0"+"C");
         humidityText.setText(Float.toString(weatherResponse[1])+"%");
         speedText.setText(Float.toString(weatherResponse[2])+" km/h");
-        visibilityText.setText(Float.toString(weatherResponse[3])+" km");
+        visibilityText.setText(Float.toString(weatherResponse[6])+" km");
 
         switch ((int)weatherResponse[7]){
             case 4201:
@@ -534,7 +499,7 @@ public class RecordingClimb extends MainActivity {
         }
     }
 
-    public void startstopChronometer(View v){
+    public void startstopChronometer(View v){                   //Method used for starting and stopping the climbing timer
         if (!climbingFlag){
             chronometer.setBase(SystemClock.elapsedRealtime());
             chronometer.start();
@@ -548,78 +513,164 @@ public class RecordingClimb extends MainActivity {
     }
 
     public double getLongitude(){
-        return longitude;
+        return this.longitude;
     }
     public double getLatitude(){
-        return latitude;
+        return this.latitude;
+    }
+    private void setLongitude(float val){
+        this.longitude = val;
+    }
+    private void setLatitude(float val){
+        this.latitude = val;
     }
 
-    public class testAzureDB extends AsyncTask<String, String, String> {     //Class to access azure DB
-        String z = "";
-        Boolean isSuccess = false;
-        String name1 = "";
-
-        @Override
-        protected void onPostExecute(String r){
-            if(isSuccess){
-
-            }
-        }
-        @Override
-        protected String doInBackground(String... params) {
-            try{
-                con = connectionclass();
-                if (con == null) {
-                    z = "Check your Internet Access!";
-                }
-                else{
-                    String query = "select * from Persons";
-                    Statement stmt = con.createStatement();
-                    ResultSet rs = stmt.executeQuery(query);
-                    if(rs.next()) {
-                        name1 = rs.getString("FirstName");
-                        z = "query successful";
-                        isSuccess = true;
-                        con.close();
-                    }
-                    else{
-                        z = "Invalid Query!";
-                        isSuccess = false;
-                    }
-                }
-            } catch(Exception e) {
-                isSuccess = false;
-                z = e.getMessage();
-                Log.d("sql error", z);
-            }
-            return z;
-        }
-    }
-
-    public Date addHoursToJavaUtilDate(Date date, int minutes) {
+    public Date addHoursToJavaUtilDate(Date date, int minutes) {        //Method used to format ClimaCell Time Data
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(date);
         calendar.add(Calendar.MINUTE, minutes);
         return calendar.getTime();
     }
 
-    @SuppressLint("NewAPI")
-    public Connection connectionclass() {   //Method for connecting to Azure API
-        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
-        StrictMode.setThreadPolicy(policy);
-        Connection connection = null;
-        String ConnectionURL = null;
-        try {
-            Class.forName("net.sourceforge.jtds.jdbc.Driver");
-            ConnectionURL = "jdbc:jtds:sqlserver://climbingdatabaseserver.database.windows.net:1433;DatabaseName=climbingdata;user=Alex@climbingdatabaseserver;password=Emoipo10;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;";
-            connection = DriverManager.getConnection(ConnectionURL);
-        } catch (SQLException se) {
-            Log.e("error here 1: ", se.getMessage());
-        } catch (ClassNotFoundException e) {
-            Log.e("error here 2: ", e.getMessage());
-        } catch (Exception e) {
-            Log.e("error here 3: ", e.getMessage());
+
+    class PredictFall extends AsyncTask<Void,Void,Void>{
+
+        @Override
+        protected Void doInBackground(Void... params) {
+
+            try {       //ADL detection
+                URL url = new URL(adl_scoring_url); //Enter URL here
+                HttpURLConnection httpURLConnection = (HttpURLConnection)url.openConnection();
+                httpURLConnection.setDoOutput(true);
+                httpURLConnection.setRequestMethod("POST"); // here you are telling that it is a POST request, which can be changed into "PUT", "GET", "DELETE" etc.
+                httpURLConnection.setRequestProperty("Content-Type", "application/json"); // here you are setting the `Content-Type` for the data you are sending which is `application/json`
+                httpURLConnection.connect();
+
+                double[][] input_array = {{1.038291243f,    -45.00022028f,   0.038669902f,    -0.519148163f,   -0.019335046f},
+                        {1.0548177f,      -45.0075678f,    0.038472101f,    -0.527497546f,   -0.019239285f},
+                        {1.078606097f,    -45.01275791f,	0.030757843f,	-0.539455946f,	-0.015383282f},
+                        {1.092423861f,    -45.01555917f,	0.030757843f,	-0.546400788f,	-0.015384239f},
+                        {1.104315598f,	-45.00470017f,	0.019918045f,	-0.552215471f,	-0.009960063f},
+                        {1.127878533f,	-45.00018012f,	0.028437929f,	-0.563941524f,	-0.014219022f},
+                        {1.110921293f,	-45.01522295f,	0.045554312f,	-0.555648552f,	-0.022784861f},
+                        {1.055880402f,	-45.04084103f,	0.059241214f,	-0.528419348f,	-0.02964749f},
+                        {1.086731106f,	-45.00948369f,	0.05496581f,     -0.543480067f,	-0.027488697f},
+                        {1.083947423f,	-45.03817694f,	0.027621359f,	-0.542433509f,	-0.013822396f},
+                        {1.124911835f,	-45.07865654f,	0.064659943f,	-0.563439047f,	-0.032386482f},
+                        {1.133095331f,	-45.00017635f,	0.080907481f,	-0.566549886f,	-0.040453899f},
+                        {1.124687999f,   	-45,        	0.009568319f,   	-0.562344f,      -0.00478416f},
+                        {1.107268577f,	-45.00165604f,	0.022777156f,	-0.553654663f,	-0.011388997f},
+                        {1.090641509f,	-45.02289999f,	0.036851489f,	-0.545598262f,	-0.018435121f}};
+
+
+                Map<String, Object> mymap = new HashMap<String,Object>();
+                mymap.put("method", "predict");
+                mymap.put("data", input_array);
+                Gson gson = new Gson();
+                String json = gson.toJson(mymap);
+
+                DataOutputStream wr = new DataOutputStream(httpURLConnection.getOutputStream());
+                wr.writeBytes(json);
+                wr.flush();
+                wr.close();
+
+                InputStream response = httpURLConnection.getInputStream();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(response));
+                StringBuilder sb = new StringBuilder();
+                String line = null;
+                try {
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line + "\n");
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+                System.out.println("ADL RESPONSE IS: "+sb.toString());
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            try {       //Fall detection
+                URL url2 = new URL(fall_scoring_url); //Enter URL here
+                HttpURLConnection httpURLConnection2 = (HttpURLConnection)url2.openConnection();
+                httpURLConnection2.setDoOutput(true);
+                httpURLConnection2.setRequestMethod("POST"); // here you are telling that it is a POST request, which can be changed into "PUT", "GET", "DELETE" etc.
+                httpURLConnection2.setRequestProperty("Content-Type", "application/json"); // here you are setting the `Content-Type` for the data you are sending which is `application/json`
+                httpURLConnection2.connect();
+
+                double[][] input_array = {{1.038291243f,    -45.00022028f,   0.038669902f,    -0.519148163f,   -0.019335046f},
+                        {1.0548177f,      -45.0075678f,    0.038472101f,    -0.527497546f,   -0.019239285f},
+                        {1.078606097f,    -45.01275791f,	0.030757843f,	-0.539455946f,	-0.015383282f},
+                        {1.092423861f,    -45.01555917f,	0.030757843f,	-0.546400788f,	-0.015384239f},
+                        {1.104315598f,	-45.00470017f,	0.019918045f,	-0.552215471f,	-0.009960063f},
+                        {1.127878533f,	-45.00018012f,	0.028437929f,	-0.563941524f,	-0.014219022f},
+                        {1.110921293f,	-45.01522295f,	0.045554312f,	-0.555648552f,	-0.022784861f},
+                        {1.055880402f,	-45.04084103f,	0.059241214f,	-0.528419348f,	-0.02964749f},
+                        {1.086731106f,	-45.00948369f,	0.05496581f,     -0.543480067f,	-0.027488697f},
+                        {1.083947423f,	-45.03817694f,	0.027621359f,	-0.542433509f,	-0.013822396f},
+                        {1.124911835f,	-45.07865654f,	0.064659943f,	-0.563439047f,	-0.032386482f},
+                        {1.133095331f,	-45.00017635f,	0.080907481f,	-0.566549886f,	-0.040453899f},
+                        {1.124687999f,   	-45,        	0.009568319f,   	-0.562344f,      -0.00478416f},
+                        {1.107268577f,	-45.00165604f,	0.022777156f,	-0.553654663f,	-0.011388997f},
+                        {1.090641509f,	-45.02289999f,	0.036851489f,	-0.545598262f,	-0.018435121f}};
+
+
+                Map<String, Object> mymap2 = new HashMap<String,Object>();
+                mymap2.put("method", "predict");
+                mymap2.put("data", input_array);
+                Gson gson = new Gson();
+                String json = gson.toJson(mymap2);
+
+                DataOutputStream wr = new DataOutputStream(httpURLConnection2.getOutputStream());
+                wr.writeBytes(json);
+                wr.flush();
+                wr.close();
+
+                InputStream response = httpURLConnection2.getInputStream();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(response));
+                StringBuilder sb = new StringBuilder();
+                String line = null;
+                try {
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line + "\n");
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+                System.out.println("FALL RESPONSE IS: "+sb.toString());
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            return null;
         }
-        return connection;
+
+
     }
+
+    class WaitForGPS extends AsyncTask<Void,Void,Void>{     //Used to see if GPS has been set before calling ClimaCell
+        @Override
+        protected Void doInBackground(Void... params) {
+            while(!climaFlag){}
+            requestWithSomeHttpHeaders();
+            return null;
+        }
+    }
+
 }

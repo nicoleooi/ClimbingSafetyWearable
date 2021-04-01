@@ -12,6 +12,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="ClimbingApplication"
         android:roundIcon="@mipmap/ic_launcher_round"
+        android:usesCleartextTraffic="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
         <activity android:name=".RecordingClimb"></activity>
