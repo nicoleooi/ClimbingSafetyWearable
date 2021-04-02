@@ -1,30 +1,41 @@
 package com.example.climbingapplication;
 import androidx.appcompat.app.AppCompatActivity;
+
+import android.content.Context;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+
 import java.util.concurrent.TimeUnit;
 
 
 public class ProfilePage extends MainActivity {
 
-    private Button homeButton;
-    private Button profileButton;
-    private Button savePageButton;
-    private EditText fNameIn, lNameIn, heightIn, weightIn, ageIn, sexIn;
-    public String fName, lName;
-    public Integer height, age;
-    public char sex;
-    public float weight;
+    public Button homeButton;
+    public Button profileButton;
+    public Button savePageButton;
+    public EditText fNameIn, lNameIn, heightIn, weightIn, ageIn, sexIn;
+    public DatabaseReference reference;
+
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_profile_page);
+
+        fNameIn = findViewById(R.id.firstName_id);
+        lNameIn = findViewById(R.id.lastName_id);
+        heightIn = findViewById(R.id.height_id);
+        weightIn = findViewById(R.id.weight_id);
+        ageIn = findViewById(R.id.age_id);
+        sexIn = findViewById(R.id.sex_id);
 
         homeButton = findViewById(R.id.homeButton);
         homeButton.setOnClickListener(new View.OnClickListener() {
@@ -50,25 +61,6 @@ public class ProfilePage extends MainActivity {
             }
         });
 
-        fNameIn = findViewById(R.id.firstName_id);
-        lNameIn = findViewById(R.id.lastName_id);
-        heightIn = findViewById(R.id.height_id);
-        weightIn = findViewById(R.id.weight_id);
-        ageIn = findViewById(R.id.age_id);
-        sexIn = findViewById(R.id.sex_id);
-
-        Cursor resultSet = userDb.rawQuery("Select * from Data",null);        //NEED TO FIX!!!!!
-        resultSet.moveToFirst();
-        String flag = resultSet.getString(0);
-        if(!(flag.isEmpty())){
-            fNameIn.setText("First Name: "+flag);
-            lNameIn.setText("Last Name: "+resultSet.getString(1));
-            heightIn.setText("Height: "+resultSet.getString(2));
-            weightIn.setText("Weight: "+resultSet.getString(3));
-            ageIn.setText("Age: "+resultSet.getString(4));
-            sexIn.setText("Sex: "+resultSet.getString(5));
-        }
-
 
     }
 
@@ -77,21 +69,24 @@ public class ProfilePage extends MainActivity {
         lName = lNameIn.getText().toString();
         height = Integer.parseInt(heightIn.getText().toString());
         age = Integer.parseInt(ageIn.getText().toString());
-        sex = sexIn.getText().toString().charAt(0);
+        sex = sexIn.getText().toString();
         weight = Float.parseFloat(weightIn.getText().toString());
-        userDb.execSQL("INSERT INTO Data VALUES('"+fName+"','"+lName+"','"+age+"','"+weight+"',"+height+",'"+sex+"')");
-        fNameIn.setText("");
-        lNameIn.setText("");
-        heightIn.setText("");
-        weightIn.setText("");
-        ageIn.setText("");
-        sexIn.setText("");
         fNameIn.setHint(fName);
         lNameIn.setHint(lName);
-        heightIn.setHint(""+height);
-        weightIn.setHint(""+weight);
-        ageIn.setHint(""+age);
-        sexIn.setHint(""+sex);
+        heightIn.setHint(Integer.toString(height));
+        weightIn.setHint(Float.toString(weight));
+        ageIn.setHint(Integer.toString(age));
+        sexIn.setHint(sex);
+
+        Context context = getApplicationContext();                      //Write user data to firebase
+        FirebaseApp.initializeApp(context);
+        reference = FirebaseDatabase.getInstance().getReference();
+        reference.child("User").child("FirstName").setValue(fName);
+        reference.child("User").child("LastName").setValue(lName);
+        reference.child("User").child("Height").setValue(Integer.toString(height));
+        reference.child("User").child("Age").setValue(Integer.toString(age));
+        reference.child("User").child("sex").setValue(sex);
+        reference.child("User").child("weight").setValue(Float.toString(weight));
 
     }
 

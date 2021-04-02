@@ -1,4 +1,10 @@
 <resources>
     <string name="app_name">My Application</string>
     <string name="title_activity_maps">Map</string>
+    <string name="Warning">High HR Detected</string>
+    <string name="textButton">OK</string>
+    <string name="hrBodyText">You may be overexerting yourself, consider taking a break or slowing down if possible</string>
+    <string name="fallTitle">Fall Detected</string>
+    <string name="fallBodyText">Notifying Emergency Services</string>
+    <string name="textButtonFall">Cancel</string>
 </resources>

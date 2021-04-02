@@ -14,8 +14,10 @@ public class MainActivity extends AppCompatActivity {
     private Toolbar mToolbar;
     private Button homeButton;
     private Button profileButton;
-    public static SQLiteDatabase localDb;
-    public static SQLiteDatabase userDb;
+    public String fName, lName;
+    public Integer height, age;
+    public String sex;
+    public float weight;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -23,16 +25,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         getWindow().getDecorView().setBackgroundColor(5);
-
-        //Create and Fill User Database
-        userDb = openOrCreateDatabase("userData",MODE_PRIVATE,null);
-        userDb.execSQL("CREATE TABLE IF NOT EXISTS Data(FirstName VARCHAR,LastName VARCHAR,Age INTEGER,Weight FLOAT, Height INTEGER, Sex CHAR);");
-        userDb.execSQL("INSERT INTO Data VALUES('Alex','Ingham', '21', '1', '2', 'M');");
-
-        //Create and Fill Climbing Database
-        localDb = openOrCreateDatabase("incomingData",MODE_PRIVATE,null);
-        localDb.execSQL("CREATE TABLE IF NOT EXISTS Data(HR VARCHAR,AccelerationX VARCHAR,AccelerationY VARCHAR,AccelerationZ VARCHAR,GPSLong VARCHAR,GPSLat VARCHAR,Time VARCHAR);");
-        localDb.execSQL("INSERT INTO Data VALUES('92','9.81', '9.81', '9.81', '100', '200', '0');");
 
         climbingPageButton = findViewById(R.id.startClimbButton);
         climbingPageButton.setOnClickListener(new View.OnClickListener() {
@@ -85,5 +77,7 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(this, RecordingClimb.class);
         startActivity(intent);
     }
+
+
 
 }

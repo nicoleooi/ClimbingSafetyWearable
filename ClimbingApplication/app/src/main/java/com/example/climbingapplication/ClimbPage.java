@@ -76,7 +76,7 @@ public class ClimbPage extends MainActivity {
         readyFlag = true;
 
         Toast toast = Toast.makeText(ClimbPage.this, "GPS Signal Acquired!",
-                Toast.LENGTH_LONG);
+                Toast.LENGTH_SHORT);
         toast.show();
     }
 

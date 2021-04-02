@@ -1,57 +1,41 @@
 package com.example.climbingapplication;
 import android.Manifest;
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.StrictMode;
 import android.os.SystemClock;
-import android.renderscript.Sampler;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Chronometer;
 import android.widget.ImageView;
-import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.res.ResourcesCompat;
+
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.Buffer;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
-import com.android.volley.VolleyLog;
-import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 
@@ -70,15 +54,15 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 import com.google.gson.Gson;
-import com.opencsv.CSVReader;
+
 import java.io.IOException;
-import java.io.FileReader;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
+
 import org.json.*;
 import java.net.*;
-import com.example.climbingapplication.AzureMLClient;
+
+import javax.xml.transform.Result;
 
 
 public class RecordingClimb extends MainActivity {
@@ -99,23 +83,50 @@ public class RecordingClimb extends MainActivity {
     private float timeClimbedFor;
     private String fields[] = {"temperatureApparent", "humidity", "windSpeed", "precipitationIntensity", "precipitationProbability", "precipitationType", "visibility", "weatherCode"};
     private static final int REQUEST_CALL = 1;
-    private int numPackets;
+    private int numHRPackets;
+    private int numHMMPackets;
+    private int numClimaPackets = 0;
     private LineChart mChart;
-    public float hrForGraphCurr;
-    public float hrForGraphNew;
     private Thread thread;
     public boolean plotData = true;
-    public String adl_scoring_url =  "http://700a2601-5dee-4509-8cd5-8a83683deb76.eastus2.azurecontainer.io/score";     //HMM URLS:
-    public String fall_scoring_url = "http://e7697dac-5e32-4b3d-bf31-12d0779da73c.eastus2.azurecontainer.io/score";
+    public String adl_scoring_url =  "http://700a2601-5dee-4509-8cd5-8a83683deb76.eastus2.azurecontainer.io/score";         //HMM URLS:
+    public String fall_scoring_url = "http://4236faf9-996e-4af4-95ae-ec7e36bb82b2.eastus2.azurecontainer.io/score";
+    public String hr_scoring_url = "http://4db72b57-36d8-4ec3-a793-ba1e365a7463.eastus2.azurecontainer.io/score";           //LSTM URL
     public int packetCount = 0;
     double inputData[][];
     public boolean climaFlag;
     public boolean graphFlag;
+    double[] inputHR_array;
+    public boolean zeroBPM = false;
+    double hr_array_nums[] = new double[10];    //Array to store predicted HR Values
+    public boolean hrFlag, fall;
+    public double inputHMM_array[][]  = new double[15][5];
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_recording_climb);
+
+        //Get user data from firebase
+        Context userContext = getApplicationContext();
+        FirebaseApp.initializeApp(userContext);
+        DatabaseReference userReference = FirebaseDatabase.getInstance().getReference().child("User");
+        userReference.addListenerForSingleValueEvent(new ValueEventListener(){
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot){
+                age = Integer.parseInt(dataSnapshot.child("Age").getValue(String.class));
+                fName = dataSnapshot.child("FirstName").getValue(String.class);
+                lName = dataSnapshot.child("LastName").getValue(String.class);
+                height = Integer.parseInt(dataSnapshot.child("Height").getValue(String.class));
+                sex = dataSnapshot.child("sex").getValue(String.class);
+                weight = Float.parseFloat(dataSnapshot.child("weight").getValue(String.class));
+                System.out.println("User Information: First Name - "+fName+"\tLast Name - "+lName+"\tAge - "+age+"\tHeight - "+height+"\tSex - "+sex+"\tWeight - "+weight);
+            }
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                System.out.println("Problem obtaining user data due to: "+error.getMessage());
+            }
+        });
 
 
         //Graph view setup:
@@ -126,13 +137,43 @@ public class RecordingClimb extends MainActivity {
         mChart.setScaleEnabled(false);
         mChart.setDrawGridBackground(false);
         mChart.setPinchZoom(false);
-        mChart.setBackgroundColor(Color.WHITE);
+        mChart.setBackgroundColor(ResourcesCompat.getColor(getResources(), R.color.cBlue, null));
         LineData hrGraphData = new LineData();
         hrGraphData.setValueTextColor(Color.WHITE);
         mChart.setData(hrGraphData);
+        // get the legend (only possible after setting data)
+        Legend l = mChart.getLegend();
+
+        // modify the legend ...
+        l.setForm(Legend.LegendForm.LINE);
+        l.setEnabled(false);
+        l.setTextColor(Color.BLACK);
+        XAxis xl = mChart.getXAxis();
+        xl.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xl.setTextColor(Color.BLACK);
+        xl.setDrawGridLines(true);
+        xl.setAvoidFirstLastClipping(true);
+        xl.setEnabled(true);
+        YAxis leftAxis = mChart.getAxisLeft();
+        leftAxis.setTextColor(Color.BLACK);
+        leftAxis.setDrawGridLines(false);
+        leftAxis.setAxisMaximum(220f);
+        leftAxis.setAxisMinimum(0f);
+        leftAxis.setDrawGridLines(true);
+        YAxis rightAxis = mChart.getAxisRight();
+        rightAxis.setEnabled(false);
+        mChart.getAxisLeft().setDrawGridLines(false);
+        mChart.getXAxis().setDrawGridLines(false);
+        mChart.setDrawBorders(false);
+
         startPlot();
 
-        numPackets = 0;
+
+        inputHR_array = new double[15];
+        numHRPackets = 0;
+        numHMMPackets = 0;
+        numClimaPackets = 0;
+        zeroBPM = false;
         hrValue = findViewById(R.id.hrValue);
         //Create Database Reference to firebase
         Context context = getApplicationContext();
@@ -157,17 +198,49 @@ public class RecordingClimb extends MainActivity {
                         hrValue.setText(Float.toString(HR));
                         setLatitude(lati);            //Needed for ClimaCell GPS Weather Info
                         setLongitude(longi);
-                        hrForGraphNew = HR;
-                        System.out.println("NEW HR IS: "+HR);
-                        addHRPoint(HR);
-                        if(lati != 0.0 && longi != 0.0){
+                        if(numClimaPackets % 180 == 0){
                             climaFlag = true;
+                            WaitForGPS w = new WaitForGPS();
+                            w.execute();
                         }
+                        if(lati != 0.0 && longi != 0.0){
+                            numClimaPackets++;
+                        }
+                        if(numHMMPackets == 15){
+                            PredictFall fPred = new PredictFall();
+                            fPred.execute();
+                            WaitForBadFall wFall = new WaitForBadFall();
+                            wFall.execute();
+                            numHMMPackets = 0;
+                        }
+                        if(numHRPackets == 15){
+                            System.out.println("15 Packets Received, Predicting...");
+                            PredictHR hrPred = new PredictHR();
+                            hrPred.execute();
+                            WaitForBadHR wHR = new WaitForBadHR();
+                            wHR.execute();
+                            numHRPackets = 0;
+                        }
+                        if(HR == 0.0){              //If we received an invalid HR
+                            zeroBPM = true;         //Set the flag to notify not to increment numHRPackets
+                        } else{                                      //Otherwise store in array for LSTM and graph
+                            inputHR_array[numHRPackets] = HR;
+                            addHRPoint(HR);
+                        }
+                        inputHMM_array[numHMMPackets][0] = A_svm;
+                        inputHMM_array[numHMMPackets][1] = theta;
+                        inputHMM_array[numHMMPackets][2] = A_dsvm;
+                        inputHMM_array[numHMMPackets][3] = A_gsvm;
+                        inputHMM_array[numHMMPackets][4] = A_gdsvm;
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
+                    if(!zeroBPM){
+                        numHRPackets++;
+                    }
+                    numHMMPackets++;
+                    zeroBPM = false;
                 }
-                //adapter.notifyDataSetChanged();
             }
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
@@ -180,6 +253,7 @@ public class RecordingClimb extends MainActivity {
             @Override
             public void onClick(View v) {
                 Intent myIntent = new Intent(RecordingClimb.this, MapsActivity.class);
+                System.out.println("LATITUDE FOR MAPS: "+latitude+" LONGITUDE FOR MAPS: "+longitude);
                 myIntent.putExtra("Latitude", latitude);
                 myIntent.putExtra("Longitude", longitude);
                 RecordingClimb.this.startActivity(myIntent);
@@ -223,7 +297,6 @@ public class RecordingClimb extends MainActivity {
             }
         });
 
-        climaFlag = false;
         apiKey = "VCN07ZizEgitoq6L4I32o199HOojMIYj";
         tempText = findViewById(R.id.temp);
         humidityText = findViewById(R.id.humidityText);
@@ -234,12 +307,6 @@ public class RecordingClimb extends MainActivity {
         requestQueue = Volley.newRequestQueue(this);
         String url = "https://api.climacell.co/v4/locations?apikey=jFNGDUXBapyjnShPufxJHL6YsCvedU9v";
 
-
-        WaitForGPS w = new WaitForGPS();    //Call ClimaCell Task (Will wait for GPS coords)
-        w.execute();
-
-        PredictFall fPred = new PredictFall();
-        fPred.execute();
 
     }
 
@@ -295,10 +362,11 @@ public class RecordingClimb extends MainActivity {
 
 
 
-    public void requestWithSomeHttpHeaders() {                                                          //Methond used to access ClimaCell API
+    public void requestWithSomeHttpHeaders() {                                                          //Methond used to access ClimaCell
+        System.out.println("LATITUDE: "+latitude+" LONGITUDE: "+longitude);
         RequestQueue queue = Volley.newRequestQueue(this);
         //System.out.println("LATITUDE: "+latitude+" LONGITUDE: "+longitude);
-        String url = "https://data.climacell.co/v4/timelines?location="+longitude+"%2C"+latitude;
+        String url = "https://data.climacell.co/v4/timelines?location="+latitude+"%2C"+longitude;
         for (int i=0; i<fields.length; i++){
             url += "&fields="+fields[i];
         }
@@ -395,7 +463,8 @@ public class RecordingClimb extends MainActivity {
     }
 
     public void handleWeatherResponse(float[] weatherResponse){
-        tempText.setText(Float.toString(weatherResponse[0])+"\u00B0"+"C");
+        int temperatureInt = (int)weatherResponse[0];
+        tempText.setText(Integer.toString(temperatureInt));                   //"\u00B0"+"C"
         humidityText.setText(Float.toString(weatherResponse[1])+"%");
         speedText.setText(Float.toString(weatherResponse[2])+" km/h");
         visibilityText.setText(Float.toString(weatherResponse[6])+" km");
@@ -532,8 +601,70 @@ public class RecordingClimb extends MainActivity {
         return calendar.getTime();
     }
 
+    class PredictHR extends AsyncTask<Void, Void, Void>{
+        @Override
+        protected  Void doInBackground(Void... params){
+            try {       //HR prediction
+                URL url = new URL(hr_scoring_url); //Enter URL here
+                HttpURLConnection httpURLConnection = (HttpURLConnection)url.openConnection();
+                httpURLConnection.setDoOutput(true);
+                httpURLConnection.setRequestMethod("POST"); // here you are telling that it is a POST request, which can be changed into "PUT", "GET", "DELETE" etc.
+                httpURLConnection.setRequestProperty("Content-Type", "application/json"); // here you are setting the `Content-Type` for the data you are sending which is `application/json`
+                httpURLConnection.connect();
+
+                Map<String, Object> mymap = new HashMap<String,Object>();
+                mymap.put("method", "predict");
+                mymap.put("data", inputHR_array);
+                Gson gson = new Gson();
+                String json = gson.toJson(mymap);
+
+                DataOutputStream wr = new DataOutputStream(httpURLConnection.getOutputStream());
+                wr.writeBytes(json);
+                wr.flush();
+                wr.close();
+
+                InputStream response = httpURLConnection.getInputStream();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(response));
+                StringBuilder sb = new StringBuilder();
+                String line = null;
+                try {
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line + "\n");
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+                hrFlag = false;
+                String hr_string = sb.toString().substring(18, sb.toString().length() - 4);
+                String[] hr_array = hr_string.split(",");
+                System.out.print("\nNext 10 Predicted HRs: ");
+                for (int i = 0; i < hr_array.length; i++){
+                    hr_array_nums[i] = Double.parseDouble(hr_array[i]);
+                    System.out.print(i+" : "+hr_array_nums[i]+"\t");
+                    if(hr_array_nums[i] >= (211 - (0.64*age)) - 15){
+                        hrFlag = true;
+                    }
+                }
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            return null;
+        }
+    }
+
 
     class PredictFall extends AsyncTask<Void,Void,Void>{
+
+        double adl_score, fall_score;
 
         @Override
         protected Void doInBackground(Void... params) {
@@ -546,26 +677,9 @@ public class RecordingClimb extends MainActivity {
                 httpURLConnection.setRequestProperty("Content-Type", "application/json"); // here you are setting the `Content-Type` for the data you are sending which is `application/json`
                 httpURLConnection.connect();
 
-                double[][] input_array = {{1.038291243f,    -45.00022028f,   0.038669902f,    -0.519148163f,   -0.019335046f},
-                        {1.0548177f,      -45.0075678f,    0.038472101f,    -0.527497546f,   -0.019239285f},
-                        {1.078606097f,    -45.01275791f,	0.030757843f,	-0.539455946f,	-0.015383282f},
-                        {1.092423861f,    -45.01555917f,	0.030757843f,	-0.546400788f,	-0.015384239f},
-                        {1.104315598f,	-45.00470017f,	0.019918045f,	-0.552215471f,	-0.009960063f},
-                        {1.127878533f,	-45.00018012f,	0.028437929f,	-0.563941524f,	-0.014219022f},
-                        {1.110921293f,	-45.01522295f,	0.045554312f,	-0.555648552f,	-0.022784861f},
-                        {1.055880402f,	-45.04084103f,	0.059241214f,	-0.528419348f,	-0.02964749f},
-                        {1.086731106f,	-45.00948369f,	0.05496581f,     -0.543480067f,	-0.027488697f},
-                        {1.083947423f,	-45.03817694f,	0.027621359f,	-0.542433509f,	-0.013822396f},
-                        {1.124911835f,	-45.07865654f,	0.064659943f,	-0.563439047f,	-0.032386482f},
-                        {1.133095331f,	-45.00017635f,	0.080907481f,	-0.566549886f,	-0.040453899f},
-                        {1.124687999f,   	-45,        	0.009568319f,   	-0.562344f,      -0.00478416f},
-                        {1.107268577f,	-45.00165604f,	0.022777156f,	-0.553654663f,	-0.011388997f},
-                        {1.090641509f,	-45.02289999f,	0.036851489f,	-0.545598262f,	-0.018435121f}};
-
-
                 Map<String, Object> mymap = new HashMap<String,Object>();
                 mymap.put("method", "predict");
-                mymap.put("data", input_array);
+                mymap.put("data", inputHMM_array);
                 Gson gson = new Gson();
                 String json = gson.toJson(mymap);
 
@@ -592,6 +706,10 @@ public class RecordingClimb extends MainActivity {
                     }
                 }
                 System.out.println("ADL RESPONSE IS: "+sb.toString());
+                String adl_score_string;
+                adl_score_string =  sb.toString().substring(12, sb.toString().length() - 2);
+                adl_score = Double.parseDouble(adl_score_string);
+                System.out.println("ADL SCORE: "+adl_score);
             } catch (MalformedURLException e) {
                 e.printStackTrace();
             } catch (IOException e) {
@@ -606,26 +724,9 @@ public class RecordingClimb extends MainActivity {
                 httpURLConnection2.setRequestProperty("Content-Type", "application/json"); // here you are setting the `Content-Type` for the data you are sending which is `application/json`
                 httpURLConnection2.connect();
 
-                double[][] input_array = {{1.038291243f,    -45.00022028f,   0.038669902f,    -0.519148163f,   -0.019335046f},
-                        {1.0548177f,      -45.0075678f,    0.038472101f,    -0.527497546f,   -0.019239285f},
-                        {1.078606097f,    -45.01275791f,	0.030757843f,	-0.539455946f,	-0.015383282f},
-                        {1.092423861f,    -45.01555917f,	0.030757843f,	-0.546400788f,	-0.015384239f},
-                        {1.104315598f,	-45.00470017f,	0.019918045f,	-0.552215471f,	-0.009960063f},
-                        {1.127878533f,	-45.00018012f,	0.028437929f,	-0.563941524f,	-0.014219022f},
-                        {1.110921293f,	-45.01522295f,	0.045554312f,	-0.555648552f,	-0.022784861f},
-                        {1.055880402f,	-45.04084103f,	0.059241214f,	-0.528419348f,	-0.02964749f},
-                        {1.086731106f,	-45.00948369f,	0.05496581f,     -0.543480067f,	-0.027488697f},
-                        {1.083947423f,	-45.03817694f,	0.027621359f,	-0.542433509f,	-0.013822396f},
-                        {1.124911835f,	-45.07865654f,	0.064659943f,	-0.563439047f,	-0.032386482f},
-                        {1.133095331f,	-45.00017635f,	0.080907481f,	-0.566549886f,	-0.040453899f},
-                        {1.124687999f,   	-45,        	0.009568319f,   	-0.562344f,      -0.00478416f},
-                        {1.107268577f,	-45.00165604f,	0.022777156f,	-0.553654663f,	-0.011388997f},
-                        {1.090641509f,	-45.02289999f,	0.036851489f,	-0.545598262f,	-0.018435121f}};
-
-
                 Map<String, Object> mymap2 = new HashMap<String,Object>();
                 mymap2.put("method", "predict");
-                mymap2.put("data", input_array);
+                mymap2.put("data", inputHMM_array);
                 Gson gson = new Gson();
                 String json = gson.toJson(mymap2);
 
@@ -652,25 +753,90 @@ public class RecordingClimb extends MainActivity {
                     }
                 }
                 System.out.println("FALL RESPONSE IS: "+sb.toString());
+                String fall_score_string;
+                fall_score_string =  sb.toString().substring(14, sb.toString().length() - 2);
+                fall_score = Double.parseDouble(fall_score_string);
+                System.out.println("FALL SCORE: "+fall_score);
             } catch (MalformedURLException e) {
                 e.printStackTrace();
             } catch (IOException e) {
                 e.printStackTrace();
             }
-
+            thresholdScores();
             return null;
         }
 
-
+        public void thresholdScores(){
+            //imbalanced thresholding here
+            System.out.println("ADL SCORE INSIDE "+adl_score);
+            System.out.println("FALL SCORE INSIDE "+fall_score);
+            if ((fall_score < 0) && (adl_score < 0)){
+                double fall_score2 = Math.exp(fall_score);
+                double adl_score2 = Math.exp(adl_score);
+                double percent_fall = (fall_score2)/(fall_score2 + adl_score2);
+                if(percent_fall >= 0.55) fall = true;
+                else fall = false;
+            }
+            else if((fall_score < 0) && (adl_score > 0)){            //if one 's neg
+                fall = false;
+            }
+            else if((fall_score > 0) && (adl_score < 0)){
+                fall = true;
+            }
+            else{
+                double percent_fall = (double)(fall_score)/(double)(fall_score + adl_score);
+                System.out.println("GOT IN HERE: "+percent_fall);
+                if(percent_fall >= 0.55) fall = true;
+                else  fall = false;
+            }
+            System.out.println(fall);
+            if(fall){
+                System.out.println("FALL DETECTED ##############");
+            }
+            return;
+        }
     }
 
     class WaitForGPS extends AsyncTask<Void,Void,Void>{     //Used to see if GPS has been set before calling ClimaCell
         @Override
         protected Void doInBackground(Void... params) {
+            System.out.println("CLIMA FLAG: "+climaFlag);
             while(!climaFlag){}
             requestWithSomeHttpHeaders();
             return null;
         }
     }
+
+    class WaitForBadHR extends AsyncTask<Void,Void,Void>{     //Used to see if GPS has been set before calling ClimaCell
+        @Override
+        protected void onPostExecute(Void v) {
+            if(!hrFlag){return;}
+            PopUpClass p = new PopUpClass();
+            p.showPopupWindowHR(findViewById(android.R.id.content));
+            return;
+        }
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            return null;
+        }
+    }
+
+    class WaitForBadFall extends AsyncTask<Void,Void,Void>{     //Used to see if GPS has been set before calling ClimaCell
+        @Override
+        protected void onPostExecute(Void v) {
+            if(!fall){return;}
+            System.out.println("GOT TO THIS PART");
+            PopUpClass p2 = new PopUpClass();
+            p2.showPopupWindowFall(findViewById(android.R.id.content));
+            return;
+        }
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            return null;
+        }
+    }
+
 
 }
