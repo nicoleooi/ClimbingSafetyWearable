@@ -43,8 +43,8 @@
                 android:textSize="25sp" />
 
 
-            <Chronometer
-                android:id="@+id/chronometer"
+            <TextView
+                android:id="@+id/countDown"
                 android:layout_width="269dp"
                 android:layout_height="242dp"
                 android:layout_gravity="center"
@@ -66,7 +66,7 @@
                 android:id="@+id/messageButton"
                 android:layout_width="match_parent"
                 android:layout_height="69dp"
-                android:layout_marginTop="110dp"
+                android:layout_marginTop="70dp"
                 android:gravity="center"
                 android:text="@string/textButtonFall"
                 android:textSize="30sp" />

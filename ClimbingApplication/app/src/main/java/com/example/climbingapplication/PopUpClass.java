@@ -5,6 +5,7 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
+import android.widget.Chronometer;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.TextView;
@@ -12,6 +13,7 @@ import android.widget.Toast;
 
 public class PopUpClass {
     //PopupWindow display method
+
 
     public void showPopupWindowHR(final View view) {
 
@@ -89,6 +91,7 @@ public class PopUpClass {
         test2.setText(R.string.fallTitle);
 
         Button buttonEdit = popupView.findViewById(R.id.messageButton);
+
         buttonEdit.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

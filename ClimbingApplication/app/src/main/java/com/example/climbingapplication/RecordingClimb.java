@@ -7,6 +7,8 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.CountDownTimer;
+import android.os.Handler;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.Gravity;
@@ -54,14 +56,16 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import org.json.*;
 import java.net.*;
-
+import java.util.Set;
 import javax.xml.transform.Result;
 
 
@@ -69,6 +73,7 @@ public class RecordingClimb extends MainActivity {
 
     private Button startBtn;
     public Boolean climbingFlag;
+    private Chronometer chronometerPop;
     private Chronometer chronometer;
     public float longitude;
     public float latitude;
@@ -89,7 +94,7 @@ public class RecordingClimb extends MainActivity {
     private LineChart mChart;
     private Thread thread;
     public boolean plotData = true;
-    public String adl_scoring_url =  "http://700a2601-5dee-4509-8cd5-8a83683deb76.eastus2.azurecontainer.io/score";         //HMM URLS:
+    public String adl_scoring_url =  "http://0c4bcf4a-0452-43c3-9785-8d2bb9c53d96.eastus2.azurecontainer.io/score";         //HMM URLS:
     public String fall_scoring_url = "http://4236faf9-996e-4af4-95ae-ec7e36bb82b2.eastus2.azurecontainer.io/score";
     public String hr_scoring_url = "http://4db72b57-36d8-4ec3-a793-ba1e365a7463.eastus2.azurecontainer.io/score";           //LSTM URL
     public int packetCount = 0;
@@ -101,11 +106,18 @@ public class RecordingClimb extends MainActivity {
     double hr_array_nums[] = new double[10];    //Array to store predicted HR Values
     public boolean hrFlag, fall;
     public double inputHMM_array[][]  = new double[15][5];
+    public boolean fallOnce;
+    public boolean HROnce;
+    public TextView countdown;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_recording_climb);
+
+
+        countdown = findViewById(R.id.countDown);
+
 
         //Get user data from firebase
         Context userContext = getApplicationContext();
@@ -154,10 +166,10 @@ public class RecordingClimb extends MainActivity {
         xl.setDrawGridLines(true);
         xl.setAvoidFirstLastClipping(true);
         xl.setEnabled(true);
+        //mChart.setVisibleXRangeMaximum(200f);
         YAxis leftAxis = mChart.getAxisLeft();
         leftAxis.setTextColor(Color.BLACK);
         leftAxis.setDrawGridLines(false);
-        leftAxis.setAxisMaximum(220f);
         leftAxis.setAxisMinimum(0f);
         leftAxis.setDrawGridLines(true);
         YAxis rightAxis = mChart.getAxisRight();
@@ -187,6 +199,11 @@ public class RecordingClimb extends MainActivity {
                     float A_dsvm, A_gdsvm, A_gsvm, A_svm, HR, lati, longi, theta;
                     try {
                         JSONObject obj = new JSONObject(pack);
+                        int sizeJson = obj.length();
+                        if(sizeJson != 8){
+                            System.out.println("PACKET TOO SMALL");
+                            continue;
+                        }
                         A_dsvm = Float.parseFloat(obj.getString("A_dsvm"));
                         A_gdsvm = Float.parseFloat(obj.getString("A_gdsvm"));
                         A_gsvm = Float.parseFloat(obj.getString("A_gsvm"));
@@ -198,6 +215,8 @@ public class RecordingClimb extends MainActivity {
                         hrValue.setText(Float.toString(HR));
                         setLatitude(lati);            //Needed for ClimaCell GPS Weather Info
                         setLongitude(longi);
+                        System.out.println("HR Packets: "+numHRPackets);
+                        System.out.println("HMM Packets: "+numHMMPackets);
                         if(numClimaPackets % 180 == 0){
                             climaFlag = true;
                             WaitForGPS w = new WaitForGPS();
@@ -215,10 +234,10 @@ public class RecordingClimb extends MainActivity {
                         }
                         if(numHRPackets == 15){
                             System.out.println("15 Packets Received, Predicting...");
-                            PredictHR hrPred = new PredictHR();
-                            hrPred.execute();
-                            WaitForBadHR wHR = new WaitForBadHR();
-                            wHR.execute();
+//                            PredictHR hrPred = new PredictHR();
+//                            hrPred.execute();
+//                            WaitForBadHR wHR = new WaitForBadHR();
+//                            wHR.execute();
                             numHRPackets = 0;
                         }
                         if(HR == 0.0){              //If we received an invalid HR
@@ -253,7 +272,7 @@ public class RecordingClimb extends MainActivity {
             @Override
             public void onClick(View v) {
                 Intent myIntent = new Intent(RecordingClimb.this, MapsActivity.class);
-                System.out.println("LATITUDE FOR MAPS: "+latitude+" LONGITUDE FOR MAPS: "+longitude);
+                //System.out.println("LATITUDE FOR MAPS: "+latitude+" LONGITUDE FOR MAPS: "+longitude);
                 myIntent.putExtra("Latitude", latitude);
                 myIntent.putExtra("Longitude", longitude);
                 RecordingClimb.this.startActivity(myIntent);
@@ -363,7 +382,7 @@ public class RecordingClimb extends MainActivity {
 
 
     public void requestWithSomeHttpHeaders() {                                                          //Methond used to access ClimaCell
-        System.out.println("LATITUDE: "+latitude+" LONGITUDE: "+longitude);
+        //System.out.println("LATITUDE: "+latitude+" LONGITUDE: "+longitude);
         RequestQueue queue = Volley.newRequestQueue(this);
         //System.out.println("LATITUDE: "+latitude+" LONGITUDE: "+longitude);
         String url = "https://data.climacell.co/v4/timelines?location="+latitude+"%2C"+longitude;
@@ -647,7 +666,7 @@ public class RecordingClimb extends MainActivity {
                 for (int i = 0; i < hr_array.length; i++){
                     hr_array_nums[i] = Double.parseDouble(hr_array[i]);
                     System.out.print(i+" : "+hr_array_nums[i]+"\t");
-                    if(hr_array_nums[i] >= (211 - (0.64*age)) - 15){
+                    if(hr_array_nums[i] >= (211 - (0.64*age)) - 15){        //(211 - (0.64*age)) - 15)
                         hrFlag = true;
                     }
                 }
@@ -705,7 +724,7 @@ public class RecordingClimb extends MainActivity {
                         e.printStackTrace();
                     }
                 }
-                System.out.println("ADL RESPONSE IS: "+sb.toString());
+                //System.out.println("ADL RESPONSE IS: "+sb.toString());
                 String adl_score_string;
                 adl_score_string =  sb.toString().substring(12, sb.toString().length() - 2);
                 adl_score = Double.parseDouble(adl_score_string);
@@ -752,7 +771,7 @@ public class RecordingClimb extends MainActivity {
                         e.printStackTrace();
                     }
                 }
-                System.out.println("FALL RESPONSE IS: "+sb.toString());
+                //System.out.println("FALL RESPONSE IS: "+sb.toString());
                 String fall_score_string;
                 fall_score_string =  sb.toString().substring(14, sb.toString().length() - 2);
                 fall_score = Double.parseDouble(fall_score_string);
@@ -768,13 +787,11 @@ public class RecordingClimb extends MainActivity {
 
         public void thresholdScores(){
             //imbalanced thresholding here
-            System.out.println("ADL SCORE INSIDE "+adl_score);
-            System.out.println("FALL SCORE INSIDE "+fall_score);
             if ((fall_score < 0) && (adl_score < 0)){
                 double fall_score2 = Math.exp(fall_score);
                 double adl_score2 = Math.exp(adl_score);
                 double percent_fall = (fall_score2)/(fall_score2 + adl_score2);
-                if(percent_fall >= 0.55) fall = true;
+                if(percent_fall >= 0) fall = true;
                 else fall = false;
             }
             else if((fall_score < 0) && (adl_score > 0)){            //if one 's neg
@@ -785,14 +802,11 @@ public class RecordingClimb extends MainActivity {
             }
             else{
                 double percent_fall = (double)(fall_score)/(double)(fall_score + adl_score);
-                System.out.println("GOT IN HERE: "+percent_fall);
-                if(percent_fall >= 0.55) fall = true;
+                //System.out.println("GOT IN HERE: "+percent_fall);
+                if(percent_fall >= 0) fall = true;
                 else  fall = false;
             }
-            System.out.println(fall);
-            if(fall){
-                System.out.println("FALL DETECTED ##############");
-            }
+            //System.out.println(fall);
             return;
         }
     }
@@ -800,7 +814,7 @@ public class RecordingClimb extends MainActivity {
     class WaitForGPS extends AsyncTask<Void,Void,Void>{     //Used to see if GPS has been set before calling ClimaCell
         @Override
         protected Void doInBackground(Void... params) {
-            System.out.println("CLIMA FLAG: "+climaFlag);
+            //System.out.println("CLIMA FLAG: "+climaFlag);
             while(!climaFlag){}
             requestWithSomeHttpHeaders();
             return null;
@@ -811,6 +825,8 @@ public class RecordingClimb extends MainActivity {
         @Override
         protected void onPostExecute(Void v) {
             if(!hrFlag){return;}
+            if(HROnce){return;}
+            HROnce = true;
             PopUpClass p = new PopUpClass();
             p.showPopupWindowHR(findViewById(android.R.id.content));
             return;
@@ -826,9 +842,10 @@ public class RecordingClimb extends MainActivity {
         @Override
         protected void onPostExecute(Void v) {
             if(!fall){return;}
-            System.out.println("GOT TO THIS PART");
-            PopUpClass p2 = new PopUpClass();
-            p2.showPopupWindowFall(findViewById(android.R.id.content));
+            if(fallOnce){return;}
+            fallOnce = true;
+            CountDownDialog countDownDialog = new CountDownDialog();
+            countDownDialog.show(getSupportFragmentManager(), "fragment_countdownTimer");
             return;
         }
 
