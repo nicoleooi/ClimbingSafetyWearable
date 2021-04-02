@@ -32,6 +32,6 @@ def run(data):
     #Predict output
     output = model.score(input_data)
     
-    result = {"FALL-prob" : output.tolist()}
+    result = {"ADL-prob" : output.tolist()}
 
     return result

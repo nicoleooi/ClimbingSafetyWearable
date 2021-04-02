@@ -7,7 +7,9 @@ Created on Wed Dec 23 19:51:38 2020
 
 from azureml.core import Environment
 from azureml.core.conda_dependencies import CondaDependencies
+from azureml.core.authentication import InteractiveLoginAuthentication
 
+interactive_auth = InteractiveLoginAuthentication(force = True)
 env = Environment("my-custom-environment")
 
 env.python.conda_dependencies = CondaDependencies.create(pip_packages=[
@@ -39,8 +41,8 @@ aci_config = AciWebservice.deploy_configuration(cpu_cores=1,
 from azureml.core import Workspace
 from azureml.core.model import Model
 
-model_name = "fall-model"
-endpoint_name = "fall-model-ep"
+model_name = "adl-model"
+endpoint_name = "adl-model-ep"
 
 ws = Workspace.from_config()
 
